@@ -1,0 +1,40 @@
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# Docker volumes (never commit data)
+infra/postgres-data/
+infra/redis-data/
+infra/evolution/instances/
+infra/typebot/uploads/
+infra/chatwoot/storage/
+infra/chatwoot/public/
+infra/backups/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Drizzle
+drizzle/meta/

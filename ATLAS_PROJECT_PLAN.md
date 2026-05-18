@@ -606,14 +606,17 @@ Execute in this order. Each step must work before moving to the next.
 
 ---
 
-## 12. Open Questions for Lucho (resolve before relevant phase)
+## 12. Confirmed Decisions
 
-- [ ] Domain to use for subdomains
-- [ ] Display name to register for Embedded Signup ("Atlas" or other?)
-- [ ] Encryption strategy for Meta App secrets in Atlas DB (env-based key acceptable, or KMS-like solution?)
-- [ ] Alerts: WhatsApp only, or also Telegram/email?
-- [ ] First product to migrate (likely SIBO based on history, confirm)
-- [ ] Internal "alerts number" — dedicated WhatsApp number for receiving n8n alerts, separate from business numbers
+- [x] **Domain:** `ebooksdgg.lat`. Subdomains: `evolution.ebooksdgg.lat`, `typebot.ebooksdgg.lat`, `typebot-viewer.ebooksdgg.lat`, `chat.ebooksdgg.lat`, `atlas.ebooksdgg.lat`
+- [x] **Embedded Signup display name:** "Atlas"
+- [x] **Encryption for Meta App secrets:** AES-256, symmetric key via environment variable. No external KMS.
+- [x] **Alert channels:**
+  - **Slack** — real-time alerts (quality drops, disconnections, restricted/banned, webhook failures)
+  - **Notion** — permanent searchable log of critical events for historical audit
+  - **Email** — daily summary report (active numbers, messages sent, etc.) for morning review
+- [x] **First product to migrate:** SIBO. One number only at first; rest stays on ManyChat.
+- [x] **Internal alerts number:** Discarded. All alerts go via Slack, Notion, and Email. No WhatsApp alerts.
 
 ---
 
