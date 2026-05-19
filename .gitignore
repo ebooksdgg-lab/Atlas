@@ -1,3 +1,10 @@
+# Credentials and secrets (NEVER commit)
+claves meta/
+claves*/
+*tokens*.txt
+*credentials*.txt
+*secrets*.txt
+
 # Environment
 .env
 .env.local
