@@ -1,0 +1,308 @@
+# Atlas — Docker Compose
+# All services run on the internal `atlas-net` network.
+# Services that need to be reached by NGINX Proxy Manager also join `proxy`.
+# First run: see docs/nginx-setup.md for network and NPM configuration.
+
+networks:
+  atlas-net:
+    name: atlas-net
+    driver: bridge
+  proxy_default:
+    external: true   # Existing NPM network — verify with: docker network ls
+
+volumes:
+  postgres-data:
+  redis-data:
+  evolution-instances:
+  typebot-uploads:
+  chatwoot-storage:
+  chatwoot-public:
+
+services:
+
+  # ─── PostgreSQL 16 ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - atlas-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  # ─── Redis 7 ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --save 60 1
+      --loglevel warning
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks:
+      - atlas-net
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+  # ─── Evolution API ─────────────────────────────────────────────
+  # Listens on port 8080. NPM proxies: evolution.ebooksdgg.lat → evolution-api:8080
+  evolution-api:
+    image: atendai/evolution-api:latest
+    restart: unless-stopped
+    environment:
+      SERVER_URL: https://evolution.${SERVER_DOMAIN}
+
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${EVOLUTION_AUTH_API_KEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/evolution
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      DATABASE_SAVE_DATA_LABELS: "true"
+      DATABASE_SAVE_DATA_HISTORIC: "true"
+
+      REDIS_ENABLED: "true"
+      REDIS_URI: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_PREFIX_KEY: evolution
+
+      WEBHOOK_GLOBAL_ENABLED: "false"
+
+      DEL_INSTANCE: "false"
+      CONFIG_SESSION_PHONE_CLIENT: Atlas
+      CONFIG_SESSION_PHONE_NAME: Chrome
+
+      LOG_LEVEL: ERROR
+      LOG_COLOR: "false"
+      LOG_BAILEYS: "false"
+    volumes:
+      - evolution-instances:/evolution/instances
+    networks:
+      - atlas-net
+      - proxy_default
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  # ─── Typebot builder ───────────────────────────────────────────
+  # Listens on port 3000. NPM proxies: typebot.ebooksdgg.lat → typebot-builder:3000
+  typebot-builder:
+    image: baptistearno/typebot-builder:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/typebot
+      ENCRYPTION_SECRET: ${TYPEBOT_ENCRYPTION_SECRET}
+      NEXTAUTH_SECRET: ${TYPEBOT_NEXTAUTH_SECRET}
+      NEXTAUTH_URL: https://typebot.${SERVER_DOMAIN}
+      NEXT_PUBLIC_VIEWER_URL: https://typebot-viewer.${SERVER_DOMAIN}
+      ADMIN_EMAIL: ${TYPEBOT_ADMIN_EMAIL}
+      DISABLE_SIGNUP: "true"
+      NEXT_PUBLIC_SMTP_FROM: ${SMTP_FROM_EMAIL}
+      SMTP_AUTH_DISABLED: "false"
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_SECURE: "true"
+    volumes:
+      - typebot-uploads:/app/public/uploads
+    networks:
+      - atlas-net
+      - proxy_default
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 768M
+
+  # ─── Typebot viewer ────────────────────────────────────────────
+  # Listens on port 3000. NPM proxies: typebot-viewer.ebooksdgg.lat → typebot-viewer:3000
+  typebot-viewer:
+    image: baptistearno/typebot-viewer:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/typebot
+      ENCRYPTION_SECRET: ${TYPEBOT_ENCRYPTION_SECRET}
+      NEXTAUTH_SECRET: ${TYPEBOT_NEXTAUTH_SECRET}
+      NEXTAUTH_URL: https://typebot.${SERVER_DOMAIN}
+      NEXT_PUBLIC_VIEWER_URL: https://typebot-viewer.${SERVER_DOMAIN}
+    networks:
+      - atlas-net
+      - proxy_default
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 384M
+
+  # ─── Chatwoot (Rails app) ──────────────────────────────────────
+  # Listens on port 3000. NPM proxies: chat.ebooksdgg.lat → chatwoot-rails:3000
+  # First run: docker compose run --rm chatwoot-rails bundle exec rails db:chatwoot_prepare
+  chatwoot-rails:
+    image: chatwoot/chatwoot:latest
+    restart: unless-stopped
+    command: bundle exec rails server -b 0.0.0.0 -p 3000
+    environment:
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE}
+      FRONTEND_URL: https://chat.${SERVER_DOMAIN}
+      DEFAULT_LOCALE: es
+      FORCE_SSL: "false"
+      ENABLE_ACCOUNT_SIGNUP: "false"
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_OPENSSL_VERIFY_MODE: none
+      POSTGRES_DATABASE: chatwoot
+      POSTGRES_HOST: postgres
+      POSTGRES_USERNAME: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PORT: 5432
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      ACTIVE_STORAGE_SERVICE: local
+      MAILER_SENDER_EMAIL: ${SMTP_FROM_EMAIL}
+      SMTP_ADDRESS: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_AUTHENTICATION: plain
+      SMTP_ENABLE_STARTTLS_AUTO: "true"
+    volumes:
+      - chatwoot-storage:/app/storage
+      - chatwoot-public:/app/public/packs
+    networks:
+      - atlas-net
+      - proxy_default
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/auth/sign_in || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1536M
+
+  # ─── Chatwoot (Sidekiq — background jobs) ─────────────────────
+  chatwoot-sidekiq:
+    image: chatwoot/chatwoot:latest
+    restart: unless-stopped
+    command: bundle exec sidekiq -C config/sidekiq.yml
+    environment:
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE}
+      FRONTEND_URL: https://chat.${SERVER_DOMAIN}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_OPENSSL_VERIFY_MODE: none
+      POSTGRES_DATABASE: chatwoot
+      POSTGRES_HOST: postgres
+      POSTGRES_USERNAME: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PORT: 5432
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      ACTIVE_STORAGE_SERVICE: local
+      MAILER_SENDER_EMAIL: ${SMTP_FROM_EMAIL}
+      SMTP_ADDRESS: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_AUTHENTICATION: plain
+      SMTP_ENABLE_STARTTLS_AUTO: "true"
+    volumes:
+      - chatwoot-storage:/app/storage
+    networks:
+      - atlas-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # ─── Atlas app ─────────────────────────────────────────────────
+  # Added in build step 5 once apps/atlas-app exists.
+  # Placeholder kept here for reference.
+  # atlas-app:
+  #   build:
+  #     context: ../apps/atlas-app
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   networks:
+  #     - atlas-net
+  #     - proxy_default
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
