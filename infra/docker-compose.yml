@@ -293,16 +293,56 @@ services:
           memory: 512M
 
   # ─── Atlas app ─────────────────────────────────────────────────
-  # Added in build step 5 once apps/atlas-app exists.
-  # Placeholder kept here for reference.
-  # atlas-app:
-  #   build:
-  #     context: ../apps/atlas-app
-  #     dockerfile: Dockerfile
-  #   restart: unless-stopped
-  #   networks:
-  #     - atlas-net
-  #     - proxy_default
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
+  # Listens on port 3000. NPM proxies: atlas.ebooksdgg.lat → atlas-app:3000
+  atlas-app:
+    build:
+      context: ../apps/atlas-app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/atlas
+      NEXTAUTH_SECRET: ${ATLAS_NEXTAUTH_SECRET}
+      NEXTAUTH_URL: https://atlas.${SERVER_DOMAIN}
+      ATLAS_ADMIN_EMAIL_LUCHO: ${ATLAS_ADMIN_EMAIL_LUCHO}
+      ATLAS_ADMIN_EMAIL_GABI: ${ATLAS_ADMIN_EMAIL_GABI}
+      ATLAS_ENCRYPTION_KEY: ${ATLAS_ENCRYPTION_KEY}
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_AUTH_API_KEY: ${EVOLUTION_AUTH_API_KEY}
+      CHATWOOT_API_URL: http://chatwoot-rails:3000
+      CHATWOOT_API_TOKEN: ${CHATWOOT_API_TOKEN}
+      TYPEBOT_API_URL: http://typebot-builder:3000
+      TYPEBOT_API_TOKEN: ${TYPEBOT_API_TOKEN}
+      META_APP_ID: ${META_APP_ID}
+      META_APP_SECRET: ${META_APP_SECRET}
+      META_CONFIG_ID: ${META_CONFIG_ID}
+      META_VERIFY_TOKEN: ${META_VERIFY_TOKEN}
+      META_API_VERSION: ${META_API_VERSION}
+      N8N_BASE_URL: ${N8N_BASE_URL}
+      N8N_API_KEY: ${N8N_API_KEY}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+      NOTION_API_KEY: ${NOTION_API_KEY}
+      NOTION_DATABASE_ID: ${NOTION_DATABASE_ID}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USERNAME}
+      SMTP_PASS: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM_EMAIL}
+      ALERT_EMAIL_TO: ${ATLAS_ADMIN_EMAIL_LUCHO}
+      NODE_ENV: production
+    networks:
+      - atlas-net
+      - proxy_default
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
