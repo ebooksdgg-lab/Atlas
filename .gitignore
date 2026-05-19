@@ -43,5 +43,5 @@ Thumbs.db
 .vscode/
 *.swp
 
-# Drizzle
-drizzle/meta/
+# Drizzle — commit migrations and meta (journal + snapshots needed for drizzle-kit diff)
+# drizzle/ is intentionally tracked
