@@ -1,0 +1,109 @@
+{
+  "name": "Atlas — Payment OCR",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "atlas-payment-ocr",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-payment",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "atlas-payment-ocr"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Expected body: { imageUrl: string, conversationId?: string, contactPhone?: string }\nconst body = $input.first().json;\nif (!body.imageUrl) throw new Error('imageUrl is required');\nreturn [{ json: body }];"
+      },
+      "id": "validate-payment",
+      "name": "Validate input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "modelId": { "value": "gpt-4o", "__rl": true, "mode": "list", "cachedResultName": "gpt-4o" },
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "contentType": "multiModal",
+              "multiModalContent": {
+                "multiModalContentValues": [
+                  {
+                    "type": "text",
+                    "text": "Analizá este comprobante de pago argentino. Extraé: monto (número), moneda (ARS o USD), fecha (YYYY-MM-DD o null), tipo (transferencia/mercadopago/otro), cbu_o_alias (si aparece) y si parece válido (true/false). Respondé SOLO con JSON, sin explicaciones:\n{\"amount\": number, \"currency\": \"ARS\"|\"USD\", \"date\": string|null, \"type\": string, \"reference\": string|null, \"valid\": boolean}"
+                  },
+                  {
+                    "type": "imageUrl",
+                    "imageUrl": "={{ $json.imageUrl }}"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0,
+          "maxTokens": 300
+        }
+      },
+      "id": "openai-ocr",
+      "name": "OpenAI — OCR comprobante",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.7,
+      "position": [680, 300],
+      "credentials": {
+        "openAiApi": { "id": "REPLACE_OPENAI_CRED_ID", "name": "OpenAI Atlas" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.message.content;\ntry {\n  const parsed = JSON.parse(raw);\n  return [{ json: { ...parsed, rawResponse: raw, conversationId: $('Validate input').first().json.conversationId, contactPhone: $('Validate input').first().json.contactPhone } }];\n} catch {\n  return [{ json: { valid: false, error: 'parse_error', rawResponse: raw } }];\n}"
+      },
+      "id": "parse-ocr",
+      "name": "Parse OCR result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "respond-payment",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validate input", "type": "main", "index": 0 }]]
+    },
+    "Validate input": {
+      "main": [[{ "node": "OpenAI — OCR comprobante", "type": "main", "index": 0 }]]
+    },
+    "OpenAI — OCR comprobante": {
+      "main": [[{ "node": "Parse OCR result", "type": "main", "index": 0 }]]
+    },
+    "Parse OCR result": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "notes": "Recibe { imageUrl, conversationId?, contactPhone? }. Usa GPT-4o para extraer datos del comprobante. Devuelve JSON con amount, currency, date, type, reference, valid. Requiere credencial OpenAI. Para invocar desde Typebot: POST al webhook URL con la URL de la imagen de comprobante."
+}

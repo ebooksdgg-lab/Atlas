@@ -1,0 +1,118 @@
+{
+  "name": "Atlas — Quality Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "atlas-quality-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-quality",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "atlas-quality-alert"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "check-event",
+              "leftValue": "={{ $json.eventType }}",
+              "rightValue": "quality_dropped",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-quality",
+      "name": "Only quality_dropped",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": { "value": "SLACK_CHANNEL_ID", "mode": "id" },
+        "text": ":warning: *Calidad bajó* en `{{ $json.phoneNumber }}`\n• Producto: {{ $json.productName ?? $json.productSlug }}\n• Calidad anterior: {{ $json.data.from }}\n• Calidad nueva: {{ $json.data.to }}\n• _{{ $now.format('dd/MM/yyyy HH:mm') }}_",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "slack-quality",
+      "name": "Slack — calidad",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [680, 220],
+      "credentials": {
+        "slackOAuth2Api": { "id": "REPLACE_SLACK_CRED_ID", "name": "Slack Atlas" }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": { "value": "NOTION_DB_ALERTS_ID", "mode": "id" },
+        "title": "Calidad bajó — {{ $json.phoneNumber }}",
+        "propertiesUi": {
+          "propertyValues": [
+            { "key": "Tipo", "type": "select", "selectValue": "quality_dropped" },
+            { "key": "Número", "type": "rich_text", "textContent": "={{ $json.phoneNumber }}" },
+            { "key": "Producto", "type": "rich_text", "textContent": "={{ $json.productName ?? $json.productSlug }}" },
+            { "key": "Detalle", "type": "rich_text", "textContent": "={{ JSON.stringify($json.data) }}" },
+            { "key": "Fecha", "type": "date", "dateValue": "={{ $now.toISO() }}" }
+          ]
+        }
+      },
+      "id": "notion-quality",
+      "name": "Notion — log calidad",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [680, 380],
+      "credentials": {
+        "notionApi": { "id": "REPLACE_NOTION_CRED_ID", "name": "Notion Atlas" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": true }"
+      },
+      "id": "respond-quality",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Only quality_dropped", "type": "main", "index": 0 }]]
+    },
+    "Only quality_dropped": {
+      "main": [
+        [
+          { "node": "Slack — calidad", "type": "main", "index": 0 },
+          { "node": "Notion — log calidad", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Slack — calidad": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "notes": "Recibe POST desde Atlas /api/webhooks/evolution cuando eventType=quality_dropped. Completar: SLACK_CHANNEL_ID, credenciales Slack y Notion."
+}

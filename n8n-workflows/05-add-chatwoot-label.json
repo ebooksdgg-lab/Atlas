@@ -1,0 +1,80 @@
+{
+  "name": "Atlas — Add Chatwoot Label",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "atlas-add-label",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-label",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "atlas-add-label"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Expected: { conversationId: number, labels: string[], accountId?: number }\nconst body = $input.first().json;\nif (!body.conversationId || !body.labels?.length) {\n  throw new Error('conversationId and labels[] are required');\n}\nreturn [{ json: { conversationId: body.conversationId, labels: body.labels, accountId: body.accountId ?? 1 } }];"
+      },
+      "id": "validate-label",
+      "name": "Validate input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://chatwoot.ebooksdgg.lat/api/v1/accounts/{{ $json.accountId }}/conversations/{{ $json.conversationId }}/labels",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "labels", "value": "={{ $json.labels }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "chatwoot-label",
+      "name": "Chatwoot — add labels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "credentials": {
+        "httpHeaderAuth": { "id": "REPLACE_CHATWOOT_CRED_ID", "name": "Chatwoot API Token" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "respond-label",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validate input", "type": "main", "index": 0 }]]
+    },
+    "Validate input": {
+      "main": [[{ "node": "Chatwoot — add labels", "type": "main", "index": 0 }]]
+    },
+    "Chatwoot — add labels": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "notes": "Agrega etiquetas a una conversación de Chatwoot. Recibe { conversationId, labels: string[], accountId? }. La credencial httpHeaderAuth debe tener header 'api_access_token' con el token de usuario-bot de Chatwoot. URL base: https://chatwoot.ebooksdgg.lat (ajustar si es distinta)."
+}
