@@ -76,10 +76,20 @@ export async function createCloudInstance(
 }
 
 export async function deleteInstance(instanceName: string): Promise<void> {
-  // Best-effort cleanup on error — do not throw
+  // Best-effort — do not throw (used for cleanup and for intentional disconnect)
   try {
     await call(`/instance/delete/${encodeURIComponent(instanceName)}`, {
       method: "DELETE",
+    })
+  } catch {}
+}
+
+export async function disableTypebot(instanceName: string): Promise<void> {
+  // Non-fatal — silence errors
+  try {
+    await call(`/typebot/set/${encodeURIComponent(instanceName)}`, {
+      method: "POST",
+      body: JSON.stringify({ enabled: false }),
     })
   } catch {}
 }
