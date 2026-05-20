@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { numbers, eventLog } from "@/lib/db/schema"
+import type { PhoneNumber } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { sendDisconnectAlert, sendQualityAlert } from "@/lib/alerts"
 
@@ -51,15 +52,7 @@ export async function POST(req: NextRequest) {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
-type NumberRow = Awaited<ReturnType<typeof db.select>>["0"] & {
-  id: string
-  phoneNumber: string
-  status: string
-  qualityRating: string
-  productSlug: string | null
-  productName: string | null
-  evolutionInstanceName: string | null
-}
+type NumberRow = PhoneNumber
 
 async function handleConnectionUpdate(
   number: NumberRow,
