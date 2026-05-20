@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Atlas — Environment setup script
+# Generates infra/.env with all secrets pre-filled.
+#
+# Usage:
+#   ./scripts/setup-env.sh <META_APP_ID> <META_APP_SECRET> <META_SYSTEM_USER_TOKEN> [META_CONFIG_ID]
+#
+# Arguments:
+#   META_APP_ID            Your Meta App ID (developers.facebook.com → App Settings → Basic)
+#   META_APP_SECRET        Your Meta App Secret (same location)
+#   META_SYSTEM_USER_TOKEN System User token (Meta Business Manager → System Users → token with
+#                          whatsapp_business_management scope)
+#   META_CONFIG_ID         (optional) Embedded Signup config ID (Meta App → Facebook Login for
+#                          Business → Configurations). Can be added to .env later.
+#
+# ─── Placeholders you MUST fill after first run ──────────────────────────────
+#
+#   PENDING_AFTER_TYPEBOT_LOGIN
+#     → TYPEBOT_API_TOKEN
+#        When: first login to https://typebot.ebooksdgg.lat
+#        How:  Settings → API tokens → Create
+#
+#   PENDING_AFTER_CHATWOOT_LOGIN
+#     → CHATWOOT_API_TOKEN
+#        When: first login to https://chatwoot.ebooksdgg.lat
+#        How:  Settings → Integrations → API Access Token (user-level token of the bot agent)
+#
+#   PENDING_AFTER_N8N_SETUP
+#     → N8N_API_KEY
+#        When: n8n is running and accessible
+#        How:  https://n8n.ebooksdgg.lat → Settings → n8n API → Create an API key
+#     → N8N_QUALITY_ALERT_WEBHOOK_URL
+#     → N8N_DISCONNECT_ALERT_WEBHOOK_URL
+#        When: after importing workflows 01 and 02 in n8n and activating them
+#        How:  copy the Production webhook URL shown in the Webhook node of each workflow
+#        Then: docker compose restart atlas-app
+#
+#   PENDING_AFTER_SLACK_SETUP
+#     → SLACK_WEBHOOK_URL
+#        When: Slack app created at api.slack.com/apps
+#        How:  Incoming Webhooks → Add New Webhook to Workspace → copy URL
+#
+#   PENDING_AFTER_NOTION_SETUP
+#     → NOTION_API_KEY
+#        When: integration created at notion.so/my-integrations
+#        How:  copy the "Internal Integration Secret"
+#     → NOTION_DATABASE_ID
+#        When: alerts database created in Notion (columns: Tipo, Número, Producto, Detalle, Fecha)
+#        How:  open database → share with your integration → copy ID from URL
+#
+#   PENDING_SMTP
+#     → SMTP_USERNAME / SMTP_PASSWORD / SMTP_FROM_EMAIL
+#        When: you have Gmail app password ready
+#        How:  Google Account → Security → 2-Step Verification → App passwords
+#              Use app password as SMTP_PASSWORD; your Gmail address as USERNAME and FROM
+#
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="$REPO_ROOT/infra/.env"
+
+# ─── Colors ──────────────────────────────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+RESET='\033[0m'
+
+# ─── Argument validation ──────────────────────────────────────────────────────
+if [[ $# -lt 3 ]]; then
+  echo -e "${RED}Error: faltan argumentos requeridos.${RESET}"
+  echo ""
+  echo "Uso:"
+  echo "  $0 <META_APP_ID> <META_APP_SECRET> <META_SYSTEM_USER_TOKEN> [META_CONFIG_ID]"
+  echo ""
+  echo "Ejemplo:"
+  echo "  $0 123456789012345 abcdef1234567890abcdef1234567890 EAABwzLixnjYB..."
+  exit 1
+fi
+
+META_APP_ID="$1"
+META_APP_SECRET="$2"
+META_SYSTEM_USER_TOKEN="$3"
+META_CONFIG_ID="${4:-PENDING_AFTER_META_EMBEDDED_SIGNUP_CONFIG}"
+
+# Validate META_APP_ID looks like a number
+if ! [[ "$META_APP_ID" =~ ^[0-9]+$ ]]; then
+  echo -e "${RED}Error: META_APP_ID debe ser numérico (ej: 123456789012345).${RESET}"
+  exit 1
+fi
+
+# ─── Idempotency check ───────────────────────────────────────────────────────
+if [[ -f "$ENV_FILE" ]]; then
+  echo -e "${YELLOW}⚠  Ya existe $ENV_FILE${RESET}"
+  printf "¿Sobreescribir? Los secrets actuales se perderán. [s/N] "
+  read -r confirm
+  if [[ ! "$confirm" =~ ^[sS]$ ]]; then
+    echo "Cancelado. Archivo .env sin cambios."
+    exit 0
+  fi
+fi
+
+# ─── Generate secrets ────────────────────────────────────────────────────────
+echo -e "${CYAN}Generando secrets...${RESET}"
+
+POSTGRES_PASSWORD=$(openssl rand -hex 32)
+REDIS_PASSWORD=$(openssl rand -hex 32)
+EVOLUTION_AUTH_API_KEY=$(openssl rand -hex 32)
+TYPEBOT_ENCRYPTION_SECRET=$(openssl rand -hex 16)   # 32 hex chars = 16 bytes
+TYPEBOT_NEXTAUTH_SECRET=$(openssl rand -hex 32)
+CHATWOOT_SECRET_KEY_BASE=$(openssl rand -hex 64)
+META_VERIFY_TOKEN=$(openssl rand -hex 32)
+ATLAS_NEXTAUTH_SECRET=$(openssl rand -hex 32)
+ATLAS_ENCRYPTION_KEY=$(openssl rand -hex 32)        # 64 hex chars = 32 bytes (AES-256)
+EVOLUTION_WEBHOOK_SECRET=$(openssl rand -hex 32)
+ATLAS_CRON_SECRET=$(openssl rand -hex 32)
+
+# ─── Write .env ──────────────────────────────────────────────────────────────
+cat > "$ENV_FILE" <<EOF
+# ─────────────────────────────────────────────────────────────────────────────
+# Atlas — Generated by scripts/setup-env.sh on $(date -u '+%Y-%m-%d %H:%M UTC')
+# DO NOT COMMIT THIS FILE.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Placeholders to replace after first run:
+#   PENDING_AFTER_TYPEBOT_LOGIN          → TYPEBOT_API_TOKEN
+#   PENDING_AFTER_CHATWOOT_LOGIN         → CHATWOOT_API_TOKEN
+#   PENDING_AFTER_N8N_SETUP              → N8N_API_KEY, N8N_*_WEBHOOK_URL (restart atlas-app after)
+#   PENDING_AFTER_SLACK_SETUP            → SLACK_WEBHOOK_URL
+#   PENDING_AFTER_NOTION_SETUP           → NOTION_API_KEY, NOTION_DATABASE_ID
+#   PENDING_SMTP                         → SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL
+#   PENDING_AFTER_META_EMBEDDED_SIGNUP_CONFIG → META_CONFIG_ID (if not provided at generation)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+SERVER_DOMAIN=ebooksdgg.lat
+
+# ─── PostgreSQL ──────────────────────────────────────────────────────────────
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+# ─── Redis ───────────────────────────────────────────────────────────────────
+REDIS_PASSWORD=${REDIS_PASSWORD}
+
+# ─── Evolution API ───────────────────────────────────────────────────────────
+EVOLUTION_AUTH_API_KEY=${EVOLUTION_AUTH_API_KEY}
+
+# ─── Typebot ─────────────────────────────────────────────────────────────────
+TYPEBOT_ENCRYPTION_SECRET=${TYPEBOT_ENCRYPTION_SECRET}
+TYPEBOT_NEXTAUTH_SECRET=${TYPEBOT_NEXTAUTH_SECRET}
+TYPEBOT_ADMIN_EMAIL=luchoeditor@gmail.com
+# Fill after first login: https://typebot.ebooksdgg.lat → Settings → API tokens
+TYPEBOT_API_TOKEN=PENDING_AFTER_TYPEBOT_LOGIN
+
+# ─── Chatwoot ────────────────────────────────────────────────────────────────
+CHATWOOT_SECRET_KEY_BASE=${CHATWOOT_SECRET_KEY_BASE}
+# Fill after first login: https://chatwoot.ebooksdgg.lat → Settings → Integrations → API Access Token
+CHATWOOT_API_TOKEN=PENDING_AFTER_CHATWOOT_LOGIN
+CHATWOOT_ACCOUNT_ID=1
+
+# ─── Meta App — App 1 (production) ───────────────────────────────────────────
+META_APP_ID=${META_APP_ID}
+META_APP_SECRET=${META_APP_SECRET}
+META_CONFIG_ID=${META_CONFIG_ID}
+META_VERIFY_TOKEN=${META_VERIFY_TOKEN}
+META_API_VERSION=v21.0
+META_SYSTEM_USER_TOKEN=${META_SYSTEM_USER_TOKEN}
+
+# ─── Atlas app ───────────────────────────────────────────────────────────────
+ATLAS_NEXTAUTH_SECRET=${ATLAS_NEXTAUTH_SECRET}
+ATLAS_ENCRYPTION_KEY=${ATLAS_ENCRYPTION_KEY}
+ATLAS_ADMIN_EMAIL_LUCHO=luchoeditor@gmail.com
+ATLAS_ADMIN_EMAIL_GABI=ebooksdgg@gmail.com
+
+# ─── n8n (existing instance) ─────────────────────────────────────────────────
+N8N_BASE_URL=https://n8n.ebooksdgg.lat
+# Fill: https://n8n.ebooksdgg.lat → Settings → n8n API → Create an API key
+N8N_API_KEY=PENDING_AFTER_N8N_SETUP
+
+# ─── Slack ───────────────────────────────────────────────────────────────────
+# Fill: api.slack.com/apps → Incoming Webhooks → Add New Webhook to Workspace
+SLACK_WEBHOOK_URL=PENDING_AFTER_SLACK_SETUP
+
+# ─── Notion ──────────────────────────────────────────────────────────────────
+# Fill: notion.so/my-integrations → Internal Integration Secret
+NOTION_API_KEY=PENDING_AFTER_NOTION_SETUP
+# Fill: ID of the alerts database (shared with your Notion integration)
+NOTION_DATABASE_ID=PENDING_AFTER_NOTION_SETUP
+
+# ─── SMTP ────────────────────────────────────────────────────────────────────
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+# Fill: Gmail address + app password (Google Account → Security → App passwords)
+SMTP_USERNAME=PENDING_SMTP
+SMTP_PASSWORD=PENDING_SMTP
+SMTP_FROM_EMAIL=PENDING_SMTP
+
+# ─── Atlas webhooks ──────────────────────────────────────────────────────────
+EVOLUTION_WEBHOOK_SECRET=${EVOLUTION_WEBHOOK_SECRET}
+ATLAS_CRON_SECRET=${ATLAS_CRON_SECRET}
+# Fill after importing + activating workflows 01 and 02 in n8n, then restart atlas-app
+N8N_QUALITY_ALERT_WEBHOOK_URL=PENDING_AFTER_N8N_SETUP
+N8N_DISCONNECT_ALERT_WEBHOOK_URL=PENDING_AFTER_N8N_SETUP
+EOF
+
+# ─── Lock down permissions ────────────────────────────────────────────────────
+chmod 600 "$ENV_FILE"
+
+# ─── Summary ─────────────────────────────────────────────────────────────────
+echo -e "${GREEN}✓ Archivo generado: $ENV_FILE${RESET}"
+echo ""
+echo -e "${CYAN}Secrets auto-generados (11):${RESET}"
+echo "  POSTGRES_PASSWORD, REDIS_PASSWORD, EVOLUTION_AUTH_API_KEY"
+echo "  TYPEBOT_ENCRYPTION_SECRET, TYPEBOT_NEXTAUTH_SECRET"
+echo "  CHATWOOT_SECRET_KEY_BASE, META_VERIFY_TOKEN"
+echo "  ATLAS_NEXTAUTH_SECRET, ATLAS_ENCRYPTION_KEY"
+echo "  EVOLUTION_WEBHOOK_SECRET, ATLAS_CRON_SECRET"
+echo ""
+echo -e "${YELLOW}Pendientes de completar después del primer arranque:${RESET}"
+echo "  1. TYPEBOT_API_TOKEN          → primer login en typebot.ebooksdgg.lat"
+echo "  2. CHATWOOT_API_TOKEN         → primer login en chatwoot.ebooksdgg.lat"
+echo "  3. N8N_API_KEY                → n8n.ebooksdgg.lat → Settings → n8n API"
+echo "  4. SLACK_WEBHOOK_URL          → api.slack.com/apps → Incoming Webhooks"
+echo "  5. NOTION_API_KEY             → notion.so/my-integrations"
+echo "  6. NOTION_DATABASE_ID         → URL de la base de datos de alertas en Notion"
+echo "  7. SMTP_USERNAME/PASSWORD/FROM → Gmail app password"
+echo "  8. N8N_QUALITY_ALERT_WEBHOOK_URL   → después de activar workflow 01 en n8n"
+echo "  9. N8N_DISCONNECT_ALERT_WEBHOOK_URL → después de activar workflow 02 en n8n"
+if [[ "$META_CONFIG_ID" == "PENDING_AFTER_META_EMBEDDED_SIGNUP_CONFIG" ]]; then
+  echo " 10. META_CONFIG_ID            → Meta App → Facebook Login for Business → Configurations"
+fi
+echo ""
+echo -e "${CYAN}Próximo paso:${RESET}"
+echo "  cd infra && docker compose up -d"
+echo "  Ver runbook completo: docs/runbook.md"
