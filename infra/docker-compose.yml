@@ -150,6 +150,7 @@ services:
       SMTP_USERNAME: ${SMTP_USERNAME}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_SECURE: "true"
+      HOSTNAME: "0.0.0.0"
     volumes:
       - typebot-uploads:/app/public/uploads
     networks:
@@ -181,6 +182,7 @@ services:
       NEXTAUTH_SECRET: ${TYPEBOT_NEXTAUTH_SECRET}
       NEXTAUTH_URL: https://typebot.${SERVER_DOMAIN}
       NEXT_PUBLIC_VIEWER_URL: https://typebot-viewer.${SERVER_DOMAIN}
+      HOSTNAME: "0.0.0.0"
     networks:
       - atlas-net
       - proxy_default
