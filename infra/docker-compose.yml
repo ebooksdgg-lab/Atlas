@@ -43,7 +43,7 @@ services:
       resources:
         limits:
           cpus: "1.0"
-          memory: 1G
+          memory: 2G
 
   # ─── Redis 7 ───────────────────────────────────────────────────
   redis:
@@ -128,7 +128,7 @@ services:
       resources:
         limits:
           cpus: "1.0"
-          memory: 1G
+          memory: 2G
 
   # ─── Typebot builder ───────────────────────────────────────────
   # Listens on port 3000. NPM proxies: typebot.ebooksdgg.lat → typebot-builder:3000
@@ -169,7 +169,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 768M
+          memory: 2G
 
   # ─── Typebot viewer ────────────────────────────────────────────
   # Listens on port 3000. NPM proxies: typebot-viewer.ebooksdgg.lat → typebot-viewer:3000
@@ -199,7 +199,7 @@ services:
       resources:
         limits:
           cpus: "0.25"
-          memory: 384M
+          memory: 1G
 
   # ─── Chatwoot (Rails app) ──────────────────────────────────────
   # Listens on port 3000. NPM proxies: chat.ebooksdgg.lat → chatwoot-rails:3000
@@ -252,7 +252,7 @@ services:
       resources:
         limits:
           cpus: "1.0"
-          memory: 1536M
+          memory: 3G
 
   # ─── Chatwoot (Sidekiq — background jobs) ─────────────────────
   chatwoot-sidekiq:
@@ -292,7 +292,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 512M
+          memory: 1536M
 
   # ─── Atlas app ─────────────────────────────────────────────────
   # Listens on port 3000. NPM proxies: atlas.ebooksdgg.lat → atlas-app:3000
@@ -354,4 +354,4 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 512M
+          memory: 1G
