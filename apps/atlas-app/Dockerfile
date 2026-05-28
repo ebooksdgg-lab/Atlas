@@ -31,6 +31,10 @@ RUN mkdir .next && chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+# postgres and bcryptjs are bundled by Next.js and not in standalone node_modules.
+# Both are zero-dependency packages, so copying them directly from deps is enough.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/postgres  ./scripts/node_modules/postgres
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/bcryptjs  ./scripts/node_modules/bcryptjs
 
 USER nextjs
 EXPOSE 3000
