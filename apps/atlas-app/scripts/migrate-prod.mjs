@@ -1,18 +1,13 @@
 #!/usr/bin/env node
-// Standalone migration runner for production containers.
-//
-// Normal run:
+// Destructive migration runner — always drops and recreates everything.
+// Run with:
 //   docker exec atlas-atlas-app-1 node /app/scripts/migrate-prod.mjs
-//
-// Force reset (drops drizzle schema so all migrations re-apply from scratch):
-//   docker exec atlas-atlas-app-1 node /app/scripts/migrate-prod.mjs --reset
 import postgres from "postgres"
 import { readFileSync } from "fs"
 import { join, dirname } from "path"
 import { fileURLToPath } from "url"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const RESET = process.argv.includes("--reset")
 
 const DATABASE_URL = process.env.DATABASE_URL
 if (!DATABASE_URL) {
@@ -20,104 +15,96 @@ if (!DATABASE_URL) {
   process.exit(1)
 }
 
-console.log(`Connecting to: ${DATABASE_URL.replace(/:([^@]+)@/, ":****@")}`)
+console.log(`URL:  ${DATABASE_URL.replace(/:([^@]+)@/, ":****@")}`)
 
 const sql = postgres(DATABASE_URL, {
   max: 1,
   idle_timeout: 30,
   connect_timeout: 10,
   ssl: false,
-  onnotice: (n) => console.log("PG notice:", n.message),
 })
 
-const [{ db }] = await sql`SELECT current_database() AS db`
-console.log(`Connected. Database: ${db}`)
+// Confirm which DB we're actually in
+const [{ db, host }] = await sql`
+  SELECT current_database() AS db, inet_server_addr()::text AS host
+`
+console.log(`DB:   ${db}`)
+console.log(`Host: ${host}`)
 
-// ─── --reset: drop drizzle schema and exit ────────────────────────────────────
-if (RESET) {
-  console.log("RESET: dropping schema drizzle CASCADE...")
-  await sql.unsafe("DROP SCHEMA IF EXISTS drizzle CASCADE")
-  console.log("Done. Run without --reset to re-apply all migrations from scratch.")
-  await sql.end()
-  process.exit(0)
+// ─── Step 1: drop drizzle schema ─────────────────────────────────────────────
+console.log("\n[1] DROP SCHEMA drizzle CASCADE...")
+await sql.unsafe("DROP SCHEMA IF EXISTS drizzle CASCADE")
+console.log("    Done.")
+
+// ─── Step 2: drop all tables in public ───────────────────────────────────────
+console.log("\n[2] Dropping all tables in public schema...")
+const publicTables = await sql`
+  SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+`
+if (publicTables.length === 0) {
+  console.log("    No tables to drop.")
+} else {
+  for (const { tablename } of publicTables) {
+    console.log(`    DROP TABLE public.${tablename} CASCADE`)
+    await sql.unsafe(`DROP TABLE IF EXISTS public."${tablename}" CASCADE`)
+  }
 }
 
-// ─── Bootstrap migrations table ───────────────────────────────────────────────
-await sql.unsafe("CREATE SCHEMA IF NOT EXISTS drizzle")
+// ─── Step 3: drop all enums in public ────────────────────────────────────────
+console.log("\n[3] Dropping all custom types (enums) in public schema...")
+const enums = await sql`
+  SELECT typname FROM pg_type
+  WHERE typtype = 'e' AND typnamespace = (
+    SELECT oid FROM pg_namespace WHERE nspname = 'public'
+  )
+`
+if (enums.length === 0) {
+  console.log("    No enums to drop.")
+} else {
+  for (const { typname } of enums) {
+    console.log(`    DROP TYPE public.${typname}`)
+    await sql.unsafe(`DROP TYPE IF EXISTS public."${typname}" CASCADE`)
+  }
+}
+
+// ─── Step 4: create drizzle schema + migrations table ────────────────────────
+console.log("\n[4] Creating drizzle.__drizzle_migrations...")
+await sql.unsafe("CREATE SCHEMA drizzle")
 await sql.unsafe(`
-  CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+  CREATE TABLE drizzle.__drizzle_migrations (
     id         SERIAL PRIMARY KEY,
     hash       TEXT NOT NULL,
     created_at BIGINT
   )
 `)
+console.log("    Done.")
 
-// ─── Load journal ─────────────────────────────────────────────────────────────
+// ─── Step 5: run migrations ───────────────────────────────────────────────────
 const DRIZZLE_DIR = join(__dirname, "..", "drizzle")
 const journal = JSON.parse(
   readFileSync(join(DRIZZLE_DIR, "meta", "_journal.json"), "utf8")
 )
 
-// ─── Load applied set ─────────────────────────────────────────────────────────
-const applied = await sql`SELECT hash FROM drizzle.__drizzle_migrations`
-const appliedSet = new Set(applied.map((r) => r.hash))
-console.log(`Recorded as applied: ${appliedSet.size} migration(s)`)
-
-// ─── Self-heal: verify recorded migrations actually created their tables ───────
-for (const entry of journal.entries) {
-  if (!appliedSet.has(entry.tag)) continue
-
-  const content = readFileSync(join(DRIZZLE_DIR, `${entry.tag}.sql`), "utf8")
-
-  // Extract table names from CREATE TABLE IF NOT EXISTS "tablename"
-  const expected = [...content.matchAll(/CREATE TABLE IF NOT EXISTS "(\w+)"/g)]
-    .map((m) => m[1])
-
-  if (expected.length === 0) continue
-
-  const rows = await sql`
-    SELECT tablename FROM pg_tables
-    WHERE schemaname = 'public' AND tablename = ANY(${expected})
-  `
-  const existing = new Set(rows.map((r) => r.tablename))
-  const missing = expected.filter((t) => !existing.has(t))
-
-  if (missing.length > 0) {
-    console.log(
-      `  [stale] ${entry.tag} — in __drizzle_migrations but tables missing: ${missing.join(", ")}`
-    )
-    await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash = ${entry.tag}`
-    appliedSet.delete(entry.tag)
-    console.log(`          Stale record removed — will re-apply.`)
-  }
-}
-
-// ─── Apply pending migrations ─────────────────────────────────────────────────
-let ran = 0
+console.log(`\n[5] Applying ${journal.entries.length} migration(s)...`)
 
 for (const entry of journal.entries) {
-  if (appliedSet.has(entry.tag)) {
-    console.log(`  [skip]  ${entry.tag}`)
-    continue
-  }
-
-  console.log(`  [apply] ${entry.tag}`)
-
+  console.log(`\n    [apply] ${entry.tag}`)
   const content = readFileSync(join(DRIZZLE_DIR, `${entry.tag}.sql`), "utf8")
   const statements = content
     .split("--> statement-breakpoint")
     .map((s) => s.trim())
     .filter(Boolean)
 
-  console.log(`          ${statements.length} statement(s)`)
+  console.log(`            ${statements.length} statement(s)`)
 
   for (let i = 0; i < statements.length; i++) {
     const stmt = statements[i]
-    console.log(`          [${i + 1}/${statements.length}] ${stmt.slice(0, 72).replace(/\n/g, " ")}`)
+    console.log(`            [${i + 1}] ${stmt.slice(0, 80).replace(/\n/g, " ")}`)
     try {
       await sql.unsafe(stmt)
+      console.log(`                OK`)
     } catch (err) {
-      console.error(`\nERROR on statement ${i + 1}:\n${stmt}\n\nPostgres: ${err.message}`)
+      console.error(`\nFAILED on statement ${i + 1}:\n${stmt}\n\nPostgres error: ${err.message}`)
       await sql.end()
       process.exit(1)
     }
@@ -127,23 +114,21 @@ for (const entry of journal.entries) {
     INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
     VALUES (${entry.tag}, ${entry.when})
   `
-  ran++
+  console.log(`    [done]  ${entry.tag}`)
 }
 
-// ─── Final verification ───────────────────────────────────────────────────────
-const tables = await sql`
-  SELECT tablename FROM pg_tables
-  WHERE schemaname = 'public'
-  ORDER BY tablename
+// ─── Step 6: verify ───────────────────────────────────────────────────────────
+console.log("\n[6] Verifying tables in public schema...")
+const created = await sql`
+  SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename
 `
-console.log(
-  `\nTables in public: ${tables.map((t) => t.tablename).join(", ") || "(none — something went wrong)"}`
-)
+console.log(`    Tables: ${created.map((r) => r.tablename).join(", ") || "(NONE)"}`)
+
+if (created.length === 0) {
+  console.error("\nERROR: No tables found in public after migration. Something is wrong.")
+  await sql.end()
+  process.exit(1)
+}
 
 await sql.end()
-
-if (ran === 0) {
-  console.log("No new migrations applied.")
-} else {
-  console.log(`Done — applied ${ran} migration(s).`)
-}
+console.log("\nMigration complete.")
