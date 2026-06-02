@@ -83,7 +83,7 @@ export const metaApps = pgTable("meta_apps", {
   id: text("id").primaryKey(), // "app_1" | "app_2" | "app_3"
   appId: text("app_id").notNull(),
   appSecretEncrypted: text("app_secret_encrypted").notNull(),
-  configId: text("config_id").notNull(),
+  configId: text("config_id"),
   isActive: boolean("is_active").notNull().default(false),
   notes: text("notes"),
 })

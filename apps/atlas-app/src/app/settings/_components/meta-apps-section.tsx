@@ -6,7 +6,7 @@ import { activateMetaApp, upsertMetaApp } from "../actions"
 type AppDisplay = {
   id: string
   appId: string
-  configId: string
+  configId: string | null
   isActive: boolean
   notes: string | null
   hasSecret: boolean
@@ -79,7 +79,11 @@ function MetaAppCard({ id, app }: { id: string; app: AppDisplay | null }) {
           <p className="text-muted-foreground">
             Config ID:{" "}
             <span className="font-mono text-foreground">
-              {app.configId.length > 12 ? `${app.configId.slice(0, 12)}…` : app.configId}
+              {app.configId
+                ? app.configId.length > 12
+                  ? `${app.configId.slice(0, 12)}…`
+                  : app.configId
+                : "no configurado"}
             </span>
           </p>
           <p className="text-muted-foreground">
@@ -115,9 +119,8 @@ function MetaAppCard({ id, app }: { id: string; app: AppDisplay | null }) {
           />
           <input
             name="configId"
-            placeholder="Config ID *"
+            placeholder="Config ID (opcional)"
             defaultValue={app?.configId ?? ""}
-            required
             className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <input

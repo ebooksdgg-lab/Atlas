@@ -4,7 +4,7 @@ import { useState, useRef } from "react"
 import Script from "next/script"
 
 type ProductInfo = { id: string; slug: string; name: string }
-type AppInfo = { id: string; appId: string; configId: string; isActive: boolean }
+type AppInfo = { id: string; appId: string; configId: string | null; isActive: boolean }
 
 type FlowState =
   | { step: "idle" }
@@ -147,7 +147,7 @@ export function ConnectForm({
         })
       },
       {
-        config_id: activeApp.configId,
+        ...(activeApp.configId ? { config_id: activeApp.configId } : {}),
         response_type: "code",
         override_default_response_type: true,
         extras: {

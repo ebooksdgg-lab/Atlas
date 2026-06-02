@@ -35,12 +35,11 @@ export async function upsertMetaApp(id: string, formData: FormData): Promise<Act
     await requireAdmin()
 
     const appId = (formData.get("appId") as string | null)?.trim() ?? ""
-    const configId = (formData.get("configId") as string | null)?.trim() ?? ""
+    const configId = (formData.get("configId") as string | null)?.trim() || null
     const rawSecret = (formData.get("appSecret") as string | null)?.trim() ?? ""
     const notes = (formData.get("notes") as string | null)?.trim() || null
 
     if (!appId) return { ok: false, error: "App ID es requerido" }
-    if (!configId) return { ok: false, error: "Config ID es requerido" }
 
     let appSecretEncrypted: string
     if (rawSecret) {
