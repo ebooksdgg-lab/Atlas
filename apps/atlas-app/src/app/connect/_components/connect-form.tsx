@@ -61,8 +61,7 @@ export function ConnectForm({
     }
     window.addEventListener("message", messageHandler)
 
-    window.FB.login(
-      async (response) => {
+    const handleResponse = async (response: FBLoginResponse) => {
         window.removeEventListener("message", messageHandler)
 
         if (!response.authResponse?.code) {
@@ -145,7 +144,10 @@ export function ConnectForm({
           step: "success",
           phoneNumber: created.phoneNumber ?? exchData.phoneNumber ?? phoneNumberId,
         })
-      },
+      }
+
+    window.FB.login(
+      (response) => { handleResponse(response) },
       {
         ...(activeApp.configId ? { config_id: activeApp.configId } : {}),
         response_type: "code",
