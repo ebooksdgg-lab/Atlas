@@ -8,20 +8,24 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-disconnect",
+      "id": "c4a7f2b1-0002-4c8d-a9e3-000000000021",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [240, 300],
-      "webhookId": "atlas-disconnect-alert"
+      "webhookId": "c4a7f2b1-0002-4c8d-a9e3-000000000020"
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
-              "id": "check-event",
+              "id": "c4a7f2b1-0002-4c8d-a9e3-000000000029",
               "leftValue": "={{ $json.eventType }}",
               "rightValue": "disconnected",
               "operator": { "type": "string", "operation": "equals" }
@@ -31,10 +35,10 @@
         },
         "options": {}
       },
-      "id": "filter-disconnect",
+      "id": "c4a7f2b1-0002-4c8d-a9e3-000000000022",
       "name": "Only disconnected",
       "type": "n8n-nodes-base.filter",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [460, 300]
     },
     {
@@ -47,7 +51,7 @@
           "includeLinkToWorkflow": false
         }
       },
-      "id": "slack-disconnect",
+      "id": "c4a7f2b1-0002-4c8d-a9e3-000000000023",
       "name": "Slack — desconexión",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
@@ -72,7 +76,7 @@
           ]
         }
       },
-      "id": "notion-disconnect",
+      "id": "c4a7f2b1-0002-4c8d-a9e3-000000000024",
       "name": "Notion — log desconexión",
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
@@ -84,9 +88,9 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={ \"ok\": true }"
+        "responseBody": "{\"ok\": true}"
       },
-      "id": "respond-disconnect",
+      "id": "c4a7f2b1-0002-4c8d-a9e3-000000000025",
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -109,10 +113,14 @@
       "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
     }
   },
+  "pinData": {},
+  "staticData": null,
   "active": false,
+  "versionId": "c4a7f2b1-0002-4c8d-a9e3-000000000002",
   "settings": { "executionOrder": "v1" },
   "meta": {
+    "instanceId": "",
     "templateCredsSetupCompleted": false
   },
-  "notes": "Recibe POST desde Atlas /api/webhooks/evolution cuando eventType=disconnected. Completar: SLACK_CHANNEL_ID, URL de Atlas, credenciales Slack y Notion."
+  "tags": []
 }

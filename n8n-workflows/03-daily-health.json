@@ -7,7 +7,7 @@
           "interval": [{ "field": "cronExpression", "expression": "0 8 * * 1-5" }]
         }
       },
-      "id": "cron-health",
+      "id": "c4a7f2b1-0003-4c8d-a9e3-000000000031",
       "name": "Cron — 8am lunes a viernes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -21,12 +21,12 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-atlas-cron-secret", "value": "={{ $env.ATLAS_CRON_SECRET }}" }
+            { "name": "x-atlas-cron-secret", "value": "={{ $vars.ATLAS_CRON_SECRET }}" }
           ]
         },
         "options": {}
       },
-      "id": "fetch-numbers",
+      "id": "c4a7f2b1-0003-4c8d-a9e3-000000000032",
       "name": "GET /api/numbers",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -39,7 +39,7 @@
       "parameters": {
         "jsCode": "const numbers = $input.first().json;\nconst total = numbers.length;\nconst green = numbers.filter(n => n.qualityRating === 'GREEN').length;\nconst yellow = numbers.filter(n => n.qualityRating === 'YELLOW').length;\nconst red = numbers.filter(n => n.qualityRating === 'RED').length;\nconst disconnected = numbers.filter(n => n.status === 'disconnected').length;\nconst banned = numbers.filter(n => n.status === 'banned').length;\nconst active = numbers.filter(n => n.status === 'active').length;\nconst paused = numbers.filter(n => n.status === 'paused').length;\n\nconst byProduct = {};\nfor (const n of numbers) {\n  const key = n.productName ?? n.productSlug ?? 'Sin producto';\n  if (!byProduct[key]) byProduct[key] = { active: 0, paused: 0, disconnected: 0 };\n  byProduct[key][n.status] = (byProduct[key][n.status] ?? 0) + 1;\n}\n\nconst productLines = Object.entries(byProduct)\n  .map(([k, v]) => `  • ${k}: ${v.active} activos, ${v.paused} pausados, ${v.disconnected} caídos`)\n  .join('\\n');\n\nreturn [{\n  json: {\n    total, green, yellow, red, disconnected, banned, active, paused, productLines,\n    hasIssues: red > 0 || disconnected > 0 || banned > 0\n  }\n}];"
       },
-      "id": "summarize",
+      "id": "c4a7f2b1-0003-4c8d-a9e3-000000000033",
       "name": "Summarize",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -55,7 +55,7 @@
           "includeLinkToWorkflow": false
         }
       },
-      "id": "slack-health",
+      "id": "c4a7f2b1-0003-4c8d-a9e3-000000000034",
       "name": "Slack — reporte",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
@@ -71,7 +71,7 @@
         "subject": "Atlas Daily Report — {{ $now.format('dd/MM/yyyy') }}",
         "text": "Reporte diario Atlas — {{ $now.format('dd/MM/yyyy') }}\n\nNúmeros activos: {{ $json.active }} / {{ $json.total }}\nCalidad: {{ $json.green }} verde, {{ $json.yellow }} amarillo, {{ $json.red }} rojo\nEstado: {{ $json.paused }} pausados, {{ $json.disconnected }} caídos, {{ $json.banned }} baneados\n\nPor producto:\n{{ $json.productLines }}\n\n{{ $json.hasIssues ? 'ATENCIÓN: hay números que requieren revisión.' : 'Todo en orden.' }}\n\n— Atlas"
       },
-      "id": "email-health",
+      "id": "c4a7f2b1-0003-4c8d-a9e3-000000000035",
       "name": "Email — reporte",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
@@ -97,10 +97,14 @@
       ]
     }
   },
+  "pinData": {},
+  "staticData": null,
   "active": false,
+  "versionId": "c4a7f2b1-0003-4c8d-a9e3-000000000003",
   "settings": { "executionOrder": "v1" },
   "meta": {
+    "instanceId": "",
     "templateCredsSetupCompleted": false
   },
-  "notes": "Cron 8am lun-vie. Llama a GET /api/numbers (requiere header x-atlas-cron-secret). Completar: SLACK_CHANNEL_ID, URL de Atlas, credenciales Slack, SMTP, dirección email destino."
+  "tags": []
 }

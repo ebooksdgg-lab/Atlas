@@ -8,20 +8,24 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-quality",
+      "id": "c4a7f2b1-0001-4c8d-a9e3-000000000011",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [240, 300],
-      "webhookId": "atlas-quality-alert"
+      "webhookId": "c4a7f2b1-0001-4c8d-a9e3-000000000010"
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
-              "id": "check-event",
+              "id": "c4a7f2b1-0001-4c8d-a9e3-000000000019",
               "leftValue": "={{ $json.eventType }}",
               "rightValue": "quality_dropped",
               "operator": { "type": "string", "operation": "equals" }
@@ -31,10 +35,10 @@
         },
         "options": {}
       },
-      "id": "filter-quality",
+      "id": "c4a7f2b1-0001-4c8d-a9e3-000000000012",
       "name": "Only quality_dropped",
       "type": "n8n-nodes-base.filter",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [460, 300]
     },
     {
@@ -47,7 +51,7 @@
           "includeLinkToWorkflow": false
         }
       },
-      "id": "slack-quality",
+      "id": "c4a7f2b1-0001-4c8d-a9e3-000000000013",
       "name": "Slack — calidad",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
@@ -72,7 +76,7 @@
           ]
         }
       },
-      "id": "notion-quality",
+      "id": "c4a7f2b1-0001-4c8d-a9e3-000000000014",
       "name": "Notion — log calidad",
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
@@ -84,9 +88,9 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={ \"ok\": true }"
+        "responseBody": "{\"ok\": true}"
       },
-      "id": "respond-quality",
+      "id": "c4a7f2b1-0001-4c8d-a9e3-000000000015",
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -109,10 +113,14 @@
       "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
     }
   },
+  "pinData": {},
+  "staticData": null,
   "active": false,
+  "versionId": "c4a7f2b1-0001-4c8d-a9e3-000000000001",
   "settings": { "executionOrder": "v1" },
   "meta": {
+    "instanceId": "",
     "templateCredsSetupCompleted": false
   },
-  "notes": "Recibe POST desde Atlas /api/webhooks/evolution cuando eventType=quality_dropped. Completar: SLACK_CHANNEL_ID, credenciales Slack y Notion."
+  "tags": []
 }

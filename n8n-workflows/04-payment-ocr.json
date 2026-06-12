@@ -8,18 +8,18 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-payment",
+      "id": "c4a7f2b1-0004-4c8d-a9e3-000000000041",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [240, 300],
-      "webhookId": "atlas-payment-ocr"
+      "webhookId": "c4a7f2b1-0004-4c8d-a9e3-000000000040"
     },
     {
       "parameters": {
         "jsCode": "// Expected body: { imageUrl: string, conversationId?: string, contactPhone?: string }\nconst body = $input.first().json;\nif (!body.imageUrl) throw new Error('imageUrl is required');\nreturn [{ json: body }];"
       },
-      "id": "validate-payment",
+      "id": "c4a7f2b1-0004-4c8d-a9e3-000000000042",
       "name": "Validate input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -55,7 +55,7 @@
           "maxTokens": 300
         }
       },
-      "id": "openai-ocr",
+      "id": "c4a7f2b1-0004-4c8d-a9e3-000000000043",
       "name": "OpenAI — OCR comprobante",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.7,
@@ -68,7 +68,7 @@
       "parameters": {
         "jsCode": "const raw = $input.first().json.message.content;\ntry {\n  const parsed = JSON.parse(raw);\n  return [{ json: { ...parsed, rawResponse: raw, conversationId: $('Validate input').first().json.conversationId, contactPhone: $('Validate input').first().json.contactPhone } }];\n} catch {\n  return [{ json: { valid: false, error: 'parse_error', rawResponse: raw } }];\n}"
       },
-      "id": "parse-ocr",
+      "id": "c4a7f2b1-0004-4c8d-a9e3-000000000044",
       "name": "Parse OCR result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -79,7 +79,7 @@
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify($json) }}"
       },
-      "id": "respond-payment",
+      "id": "c4a7f2b1-0004-4c8d-a9e3-000000000045",
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -100,10 +100,14 @@
       "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
     }
   },
+  "pinData": {},
+  "staticData": null,
   "active": false,
+  "versionId": "c4a7f2b1-0004-4c8d-a9e3-000000000004",
   "settings": { "executionOrder": "v1" },
   "meta": {
+    "instanceId": "",
     "templateCredsSetupCompleted": false
   },
-  "notes": "Recibe { imageUrl, conversationId?, contactPhone? }. Usa GPT-4o para extraer datos del comprobante. Devuelve JSON con amount, currency, date, type, reference, valid. Requiere credencial OpenAI. Para invocar desde Typebot: POST al webhook URL con la URL de la imagen de comprobante."
+  "tags": []
 }

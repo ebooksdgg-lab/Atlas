@@ -8,18 +8,18 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-label",
+      "id": "c4a7f2b1-0005-4c8d-a9e3-000000000051",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [240, 300],
-      "webhookId": "atlas-add-label"
+      "webhookId": "c4a7f2b1-0005-4c8d-a9e3-000000000050"
     },
     {
       "parameters": {
         "jsCode": "// Expected: { conversationId: number, labels: string[], accountId?: number }\nconst body = $input.first().json;\nif (!body.conversationId || !body.labels?.length) {\n  throw new Error('conversationId and labels[] are required');\n}\nreturn [{ json: { conversationId: body.conversationId, labels: body.labels, accountId: body.accountId ?? 1 } }];"
       },
-      "id": "validate-label",
+      "id": "c4a7f2b1-0005-4c8d-a9e3-000000000052",
       "name": "Validate input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -39,7 +39,7 @@
         },
         "options": {}
       },
-      "id": "chatwoot-label",
+      "id": "c4a7f2b1-0005-4c8d-a9e3-000000000053",
       "name": "Chatwoot — add labels",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -53,7 +53,7 @@
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify($json) }}"
       },
-      "id": "respond-label",
+      "id": "c4a7f2b1-0005-4c8d-a9e3-000000000054",
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -71,10 +71,14 @@
       "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
     }
   },
+  "pinData": {},
+  "staticData": null,
   "active": false,
+  "versionId": "c4a7f2b1-0005-4c8d-a9e3-000000000005",
   "settings": { "executionOrder": "v1" },
   "meta": {
+    "instanceId": "",
     "templateCredsSetupCompleted": false
   },
-  "notes": "Agrega etiquetas a una conversación de Chatwoot. Recibe { conversationId, labels: string[], accountId? }. La credencial httpHeaderAuth debe tener header 'api_access_token' con el token de usuario-bot de Chatwoot. URL base: https://chatwoot.ebooksdgg.lat (ajustar si es distinta)."
+  "tags": []
 }
