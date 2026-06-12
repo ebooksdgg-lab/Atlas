@@ -51,21 +51,15 @@ export async function exchangeCodeForToken(params: {
   appId: string
   appSecret: string
 }): Promise<string> {
-  // The `code` comes from FB.login (JS SDK) with config_id (Embedded Signup).
-  // For that flow the code is bound to the app ORIGIN registered under
-  // "Allowed Domains for the JavaScript SDK" — not to a callback URL and not empty.
-  // The redirect_uri here must match that origin exactly, including the trailing
-  // slash, or Meta fails with "redirect_uri is not identical".
-  const origin = (process.env.ATLAS_PUBLIC_URL ?? "https://atlas.ebooksdgg.lat/").replace(
-    /\/?$/,
-    "/"
-  )
+  // The `code` comes from FB.login with response_type:"code" + config_id
+  // (Embedded Signup). Per Meta's docs, that code is exchanged with ONLY
+  // client_id, client_secret and code — no redirect_uri at all (sending one,
+  // even empty, makes Meta try to validate it as an App Domain and fail).
   const url =
     `${GRAPH}/${API_VERSION}/oauth/access_token?` +
     new URLSearchParams({
       client_id: params.appId,
       client_secret: params.appSecret,
-      redirect_uri: origin,
       code: params.code,
     }).toString()
 
