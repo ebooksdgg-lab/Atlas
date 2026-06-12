@@ -29,9 +29,21 @@
               "leftValue": "={{ $json.eventType }}",
               "rightValue": "quality_dropped",
               "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "id": "c4a7f2b1-0001-4c8d-a9e3-000000000018",
+              "leftValue": "={{ $json.eventType }}",
+              "rightValue": "restricted",
+              "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "id": "c4a7f2b1-0001-4c8d-a9e3-000000000017",
+              "leftValue": "={{ $json.eventType }}",
+              "rightValue": "banned",
+              "operator": { "type": "string", "operation": "equals" }
             }
           ],
-          "combinator": "and"
+          "combinator": "or"
         },
         "options": {}
       },
