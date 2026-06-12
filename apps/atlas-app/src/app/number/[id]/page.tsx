@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation"
 import { db } from "@/lib/db"
 import { numbers, eventLog, products } from "@/lib/db/schema"
 import { eq, desc } from "drizzle-orm"
+import { numberPublicColumns } from "@/lib/db/columns"
 import { NumberDetail } from "./_components/number-detail"
 
 export default async function NumberPage({
@@ -17,7 +18,8 @@ export default async function NumberPage({
   const { id } = await params
 
   const [[number], events, allProducts] = await Promise.all([
-    db.select().from(numbers).where(eq(numbers.id, id)).limit(1),
+    // Excludes accessTokenEncrypted — the token must never reach the client.
+    db.select(numberPublicColumns).from(numbers).where(eq(numbers.id, id)).limit(1),
     db
       .select()
       .from(eventLog)

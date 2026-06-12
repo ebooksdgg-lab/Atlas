@@ -13,6 +13,7 @@ import { relations } from "drizzle-orm"
 // ─── Enums ───────────────────────────────────────────────────────
 
 export const numberStatusEnum = pgEnum("number_status", [
+  "unassigned",
   "active",
   "paused",
   "disconnected",
@@ -35,8 +36,16 @@ export const numbers = pgTable("numbers", {
   phoneNumber: text("phone_number").notNull().unique(),
   displayName: text("display_name"),
   businessId: text("business_id"),
+  // Business Manager display name — stored so the dashboard can filter by BM by name
+  businessName: text("business_name"),
   wabaId: text("waba_id"),
-  phoneNumberId: text("phone_number_id"),
+  // Unique so re-importing a profile dedupes on the stable Meta phone_number_id
+  phoneNumberId: text("phone_number_id").unique(),
+  // OAuth token from Embedded Signup, encrypted (AES-256-GCM). Stored per number
+  // because each Meta profile/BM grants its own token and a single env System User
+  // token cannot cover 10+ separate business profiles. Used at assign-time for
+  // Evolution/Chatwoot provisioning and for quality sync. Re-import refreshes it.
+  accessTokenEncrypted: text("access_token_encrypted"),
   productSlug: text("product_slug"),
   productName: text("product_name"),
   metaAppUsed: text("meta_app_used"),

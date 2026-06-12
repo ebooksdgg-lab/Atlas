@@ -4,16 +4,19 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import type { PhoneNumber } from "@/lib/db/schema"
 
-// Date fields become ISO strings when serialized through Next.js Server → Client boundary
+// The encrypted token is never sent to the client — both the dashboard query and
+// /api/numbers omit it. Dates become ISO strings across the Server → Client boundary.
 type PhoneNumberRow = Omit<
   PhoneNumber,
-  "connectedAt" | "lastActivityAt" | "createdAt" | "updatedAt"
+  "accessTokenEncrypted" | "connectedAt" | "lastActivityAt" | "createdAt" | "updatedAt"
 > & {
   connectedAt: string | null
   lastActivityAt: string | null
   createdAt: string
   updatedAt: string
 }
+
+type ProductOption = { id: string; slug: string; name: string }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,10 +55,8 @@ function formatClock(d: Date): string {
 
 function QualityBadge({ rating }: { rating: string }) {
   const styles: Record<string, string> = {
-    GREEN:
-      "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-    YELLOW:
-      "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+    GREEN: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    YELLOW: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
     RED: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
     UNKNOWN: "bg-muted text-muted-foreground",
   }
@@ -66,9 +67,7 @@ function QualityBadge({ rating }: { rating: string }) {
     UNKNOWN: "—",
   }
   return (
-    <span
-      className={`text-xs px-2 py-0.5 rounded-full ${styles[rating] ?? styles.UNKNOWN}`}
-    >
+    <span className={`text-xs px-2 py-0.5 rounded-full ${styles[rating] ?? styles.UNKNOWN}`}>
       {labels[rating] ?? rating}
     </span>
   )
@@ -76,14 +75,14 @@ function QualityBadge({ rating }: { rating: string }) {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    active:
-      "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-    paused:
-      "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+    unassigned: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    paused: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
     disconnected: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
     banned: "bg-zinc-800 text-zinc-200",
   }
   const labels: Record<string, string> = {
+    unassigned: "Sin asignar",
     active: "Activo",
     paused: "Pausado",
     disconnected: "Desconectado",
@@ -102,18 +101,28 @@ function StatusBadge({ status }: { status: string }) {
 
 export function NumbersTable({
   initialRows,
+  products,
 }: {
-  initialRows: PhoneNumber[]
+  initialRows: Omit<PhoneNumber, "accessTokenEncrypted">[]
+  products: ProductOption[]
 }) {
   const router = useRouter()
   const [rows, setRows] = useState<PhoneNumberRow[]>(
     initialRows as unknown as PhoneNumberRow[]
   )
+  const [filterBM, setFilterBM] = useState("all")
   const [filterProduct, setFilterProduct] = useState("all")
   const [filterStatus, setFilterStatus] = useState("all")
   const [filterQuality, setFilterQuality] = useState("all")
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [refreshing, setRefreshing] = useState(false)
+  const [assigningId, setAssigningId] = useState<string | null>(null)
+  const [assignError, setAssignError] = useState<string | null>(null)
+
+  const slugToId = useMemo(
+    () => Object.fromEntries(products.map((p) => [p.slug, p.id])),
+    [products]
+  )
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
@@ -134,21 +143,48 @@ export function NumbersTable({
     return () => clearInterval(interval)
   }, [refresh])
 
-  const stats = useMemo(() => ({
-    total: rows.length,
-    healthy: rows.filter(
-      (r) => r.status === "active" && r.qualityRating === "GREEN"
-    ).length,
-    warning: rows.filter(
-      (r) => r.status === "active" && r.qualityRating === "YELLOW"
-    ).length,
-    critical: rows.filter(
-      (r) => r.status === "active" && r.qualityRating === "RED"
-    ).length,
-    down: rows.filter(
-      (r) => r.status === "disconnected" || r.status === "banned"
-    ).length,
-  }), [rows])
+  async function handleAssign(id: string, productId: string) {
+    if (!productId) return
+    setAssigningId(id)
+    setAssignError(null)
+    try {
+      const res = await fetch(`/api/numbers/${id}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId }),
+      })
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string }
+        setAssignError(err.error ?? "Error al asignar el producto.")
+      } else {
+        await refresh()
+      }
+    } catch (e) {
+      setAssignError(e instanceof Error ? e.message : "Error de red al asignar.")
+    } finally {
+      setAssigningId(null)
+    }
+  }
+
+  const stats = useMemo(
+    () => ({
+      total: rows.length,
+      unassigned: rows.filter((r) => r.status === "unassigned").length,
+      healthy: rows.filter((r) => r.status === "active" && r.qualityRating === "GREEN").length,
+      warning: rows.filter((r) => r.status === "active" && r.qualityRating === "YELLOW").length,
+      critical: rows.filter((r) => r.status === "active" && r.qualityRating === "RED").length,
+      down: rows.filter((r) => r.status === "disconnected" || r.status === "banned").length,
+    }),
+    [rows]
+  )
+
+  const bmOptions = useMemo(() => {
+    const seen = new Set<string>()
+    for (const r of rows) {
+      if (r.businessName) seen.add(r.businessName)
+    }
+    return Array.from(seen).sort()
+  }, [rows])
 
   const productOptions = useMemo(() => {
     const seen = new Map<string, string>()
@@ -163,12 +199,17 @@ export function NumbersTable({
   const filteredRows = useMemo(
     () =>
       rows.filter((r) => {
-        if (filterProduct !== "all" && r.productSlug !== filterProduct) return false
+        if (filterBM !== "all" && r.businessName !== filterBM) return false
+        if (filterProduct === "__unassigned__") {
+          if (r.productSlug) return false
+        } else if (filterProduct !== "all" && r.productSlug !== filterProduct) {
+          return false
+        }
         if (filterStatus !== "all" && r.status !== filterStatus) return false
         if (filterQuality !== "all" && r.qualityRating !== filterQuality) return false
         return true
       }),
-    [rows, filterProduct, filterStatus, filterQuality]
+    [rows, filterBM, filterProduct, filterStatus, filterQuality]
   )
 
   const selectClass =
@@ -180,26 +221,11 @@ export function NumbersTable({
       <div className="flex flex-wrap gap-3">
         {[
           { label: "Total", value: stats.total, color: "" },
-          {
-            label: "Verde",
-            value: stats.healthy,
-            color: "text-green-600 dark:text-green-400",
-          },
-          {
-            label: "Amarillo",
-            value: stats.warning,
-            color: "text-yellow-600 dark:text-yellow-400",
-          },
-          {
-            label: "Rojo",
-            value: stats.critical,
-            color: "text-red-600 dark:text-red-400",
-          },
-          {
-            label: "Caídos",
-            value: stats.down,
-            color: "text-muted-foreground",
-          },
+          { label: "Sin asignar", value: stats.unassigned, color: "text-blue-600 dark:text-blue-400" },
+          { label: "Verde", value: stats.healthy, color: "text-green-600 dark:text-green-400" },
+          { label: "Amarillo", value: stats.warning, color: "text-yellow-600 dark:text-yellow-400" },
+          { label: "Rojo", value: stats.critical, color: "text-red-600 dark:text-red-400" },
+          { label: "Caídos", value: stats.down, color: "text-muted-foreground" },
         ].map(({ label, value, color }) => (
           <div
             key={label}
@@ -213,12 +239,22 @@ export function NumbersTable({
 
       {/* Filters + refresh */}
       <div className="flex flex-wrap items-center gap-2">
+        <select value={filterBM} onChange={(e) => setFilterBM(e.target.value)} className={selectClass}>
+          <option value="all">Todos los BM</option>
+          {bmOptions.map((bm) => (
+            <option key={bm} value={bm}>
+              {bm}
+            </option>
+          ))}
+        </select>
+
         <select
           value={filterProduct}
           onChange={(e) => setFilterProduct(e.target.value)}
           className={selectClass}
         >
           <option value="all">Todos los productos</option>
+          <option value="__unassigned__">Sin asignar</option>
           {productOptions.map(({ slug, name }) => (
             <option key={slug} value={slug}>
               {name}
@@ -232,6 +268,7 @@ export function NumbersTable({
           className={selectClass}
         >
           <option value="all">Todos los estados</option>
+          <option value="unassigned">Sin asignar</option>
           <option value="active">Activo</option>
           <option value="paused">Pausado</option>
           <option value="disconnected">Desconectado</option>
@@ -264,26 +301,27 @@ export function NumbersTable({
         </div>
       </div>
 
+      {assignError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-2">
+          <p className="text-destructive text-sm">{assignError}</p>
+        </div>
+      )}
+
       {/* Table */}
       <div className="rounded-lg border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
-                Número
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Número</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden lg:table-cell">
+                Business Manager
               </th>
-              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
-                Producto
-              </th>
-              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
-                Calidad
-              </th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Producto</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Calidad</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">
                 Tier
               </th>
-              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
-                Estado
-              </th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Estado</th>
               <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">
                 Última act.
               </th>
@@ -299,13 +337,28 @@ export function NumbersTable({
                 <td className="px-4 py-3">
                   <p className="font-mono text-xs">{r.phoneNumber}</p>
                   {r.internalLabel && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {r.internalLabel}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{r.internalLabel}</p>
                   )}
                 </td>
-                <td className="px-4 py-3">
-                  <span>{r.productName ?? r.productSlug ?? "—"}</span>
+                <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
+                  {r.businessName ?? "—"}
+                </td>
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <select
+                    value={r.productSlug ? (slugToId[r.productSlug] ?? "") : ""}
+                    onChange={(e) => handleAssign(r.id, e.target.value)}
+                    disabled={assigningId === r.id || products.length === 0}
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                  >
+                    <option value="">
+                      {assigningId === r.id ? "Asignando…" : "Asignar…"}
+                    </option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td className="px-4 py-3">
                   <QualityBadge rating={r.qualityRating} />
@@ -324,12 +377,9 @@ export function NumbersTable({
 
             {filteredRows.length === 0 && (
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-10 text-center text-muted-foreground"
-                >
+                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
                   {rows.length === 0
-                    ? "Sin números conectados. Hacé clic en + Conectar número para empezar."
+                    ? "Sin números importados. Hacé clic en + Conectar perfil para importar."
                     : "Sin resultados para los filtros aplicados."}
                 </td>
               </tr>

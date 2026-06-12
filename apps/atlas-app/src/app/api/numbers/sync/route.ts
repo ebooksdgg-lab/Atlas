@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { numbers, eventLog } from "@/lib/db/schema"
 import { eq, and, ne } from "drizzle-orm"
 import { sendQualityAlert } from "@/lib/alerts"
+import { decrypt } from "@/lib/crypto"
 
 // Called by n8n (03-daily-health) or any external scheduler.
 // Auth: x-atlas-cron-secret header must match ATLAS_CRON_SECRET env var.
@@ -36,9 +37,24 @@ export async function GET(req: NextRequest) {
       continue
     }
 
+    // Prefer the number's own token (each Meta profile/BM has its own). Fall back
+    // to the env System User token only if this number has no stored token yet.
+    let token = process.env.META_SYSTEM_USER_TOKEN ?? ""
+    if (number.accessTokenEncrypted) {
+      try {
+        token = decrypt(number.accessTokenEncrypted)
+      } catch {
+        // keep env fallback
+      }
+    }
+    if (!token) {
+      results.push({ id: number.id, phone: number.phoneNumber, updated: false, error: "no token" })
+      continue
+    }
+
     try {
       const res = await fetch(
-        `https://graph.facebook.com/${API_VERSION}/${number.phoneNumberId}?fields=quality_rating,messaging_limit_tier&access_token=${process.env.META_SYSTEM_USER_TOKEN ?? ""}`,
+        `https://graph.facebook.com/${API_VERSION}/${number.phoneNumberId}?fields=quality_rating,messaging_limit_tier&access_token=${encodeURIComponent(token)}`,
         { next: { revalidate: 0 } }
       )
 

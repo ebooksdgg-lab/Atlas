@@ -4,7 +4,10 @@ import { useState, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import type { PhoneNumber, EventLogEntry, Product } from "@/lib/db/schema"
 
-type Row = Omit<PhoneNumber, "connectedAt" | "lastActivityAt" | "createdAt" | "updatedAt"> & {
+type Row = Omit<
+  PhoneNumber,
+  "accessTokenEncrypted" | "connectedAt" | "lastActivityAt" | "createdAt" | "updatedAt"
+> & {
   connectedAt: string | null
   lastActivityAt: string | null
   createdAt: string
@@ -36,6 +39,7 @@ const QUALITY_LABELS: Record<string, string> = {
 }
 
 const STATUS_STYLES: Record<string, string> = {
+  unassigned: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
   paused: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
   disconnected: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
@@ -43,6 +47,7 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 const STATUS_LABELS: Record<string, string> = {
+  unassigned: "Sin asignar",
   active: "Activo",
   paused: "Pausado",
   disconnected: "Desconectado",
@@ -94,7 +99,7 @@ export function NumberDetail({
   initialEvents,
   products,
 }: {
-  initialNumber: PhoneNumber
+  initialNumber: Omit<PhoneNumber, "accessTokenEncrypted">
   initialEvents: EventLogEntry[]
   products: Product[]
 }) {
@@ -232,6 +237,7 @@ export function NumberDetail({
               style={STATUS_STYLES[number.status] ?? ""}
             />
           } />
+          <InfoRow label="Business Manager" value={number.businessName} />
           <InfoRow label="Meta App usada" value={number.metaAppUsed} />
           <InfoRow label="WABA ID" value={number.wabaId} />
           <InfoRow label="Phone Number ID" value={number.phoneNumberId} />
