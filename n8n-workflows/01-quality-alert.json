@@ -63,7 +63,7 @@
           "parameters": [
             {
               "name": "text",
-              "value": "=:warning: *Calidad bajó* en `{{ $json.phoneNumber }}`\n• Producto: {{ $json.productName ?? $json.productSlug }}\n• Calidad anterior: {{ $json.data.from }}\n• Calidad nueva: {{ $json.data.to }}\n• _{{ $now.format('dd/MM/yyyy HH:mm') }}_"
+              "value": "={{ $json.eventType === 'banned' ? ':skull:' : $json.eventType === 'restricted' ? ':no_entry:' : ':warning:' }} *{{ $json.eventType === 'banned' ? 'Número baneado' : $json.eventType === 'restricted' ? 'Número restringido' : 'Calidad bajó' }}* en `{{ $json.phoneNumber }}`\n• Producto: {{ $json.productName ?? $json.productSlug }}\n• Calidad anterior: {{ $json.data.from }}\n• Calidad nueva: {{ $json.data.to }}\n• _{{ $now.format('dd/MM/yyyy HH:mm') }}_"
             }
           ]
         },
