@@ -51,11 +51,16 @@ export async function exchangeCodeForToken(params: {
   appId: string
   appSecret: string
 }): Promise<string> {
+  // The `code` comes from FB.login (JS SDK), which performs no browser redirect,
+  // so the code is NOT bound to any real redirect_uri. Meta requires redirect_uri
+  // to be sent EMPTY for this flow — omitting it makes Meta fall back to a default
+  // and fail with "redirect_uri is not identical".
   const url =
     `${GRAPH}/${API_VERSION}/oauth/access_token?` +
     new URLSearchParams({
       client_id: params.appId,
       client_secret: params.appSecret,
+      redirect_uri: "",
       code: params.code,
     }).toString()
 
