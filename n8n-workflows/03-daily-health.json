@@ -47,22 +47,25 @@
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": { "value": "SLACK_CHANNEL_ID", "mode": "id" },
-        "text": ":bar_chart: *Reporte diario Atlas* — {{ $now.format('dd/MM/yyyy') }}\n\n*Números activos:* {{ $json.active }} / {{ $json.total }}\n*Calidad:* :green_circle: {{ $json.green }} verde · :yellow_circle: {{ $json.yellow }} amarillo · :red_circle: {{ $json.red }} rojo\n*Estado:* {{ $json.paused }} pausados · {{ $json.disconnected }} caídos · {{ $json.banned }} baneados\n\n*Por producto:*\n{{ $json.productLines }}\n\n{{ $json.hasIssues ? ':warning: Hay números que requieren atención.' : ':white_check_mark: Todo en orden.' }}",
-        "otherOptions": {
-          "includeLinkToWorkflow": false
-        }
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=:bar_chart: *Reporte diario Atlas* — {{ $now.format('dd/MM/yyyy') }}\n\n*Números activos:* {{ $json.active }} / {{ $json.total }}\n*Calidad:* :green_circle: {{ $json.green }} verde · :yellow_circle: {{ $json.yellow }} amarillo · :red_circle: {{ $json.red }} rojo\n*Estado:* {{ $json.paused }} pausados · {{ $json.disconnected }} caídos · {{ $json.banned }} baneados\n\n*Por producto:*\n{{ $json.productLines }}\n\n{{ $json.hasIssues ? ':warning: Hay números que requieren atención.' : ':white_check_mark: Todo en orden.' }}"
+            }
+          ]
+        },
+        "options": {}
       },
       "id": "c4a7f2b1-0003-4c8d-a9e3-000000000034",
       "name": "Slack — reporte",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
-      "position": [900, 220],
-      "credentials": {
-        "slackOAuth2Api": { "id": "REPLACE_SLACK_CRED_ID", "name": "Slack Atlas" }
-      }
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 220]
     },
     {
       "parameters": {

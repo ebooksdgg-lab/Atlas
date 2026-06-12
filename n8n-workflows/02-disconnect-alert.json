@@ -43,22 +43,25 @@
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": { "value": "SLACK_CHANNEL_ID", "mode": "id" },
-        "text": ":red_circle: *Número desconectado*: `{{ $json.phoneNumber }}`\n• Producto: {{ $json.productName ?? $json.productSlug }}\n• Instancia Evolution: {{ $json.evolutionInstanceName ?? '—' }}\n• _{{ $now.format('dd/MM/yyyy HH:mm') }}_\n\n:point_right: <https://atlas.ebooksdgg.lat/number/{{ $json.numberId }}|Ver en Atlas>",
-        "otherOptions": {
-          "includeLinkToWorkflow": false
-        }
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=:red_circle: *Número desconectado*: `{{ $json.phoneNumber }}`\n• Producto: {{ $json.productName ?? $json.productSlug }}\n• Instancia Evolution: {{ $json.evolutionInstanceName ?? '—' }}\n• _{{ $now.format('dd/MM/yyyy HH:mm') }}_\n\n:point_right: <https://atlas.ebooksdgg.lat/number/{{ $json.numberId }}|Ver en Atlas>"
+            }
+          ]
+        },
+        "options": {}
       },
       "id": "c4a7f2b1-0002-4c8d-a9e3-000000000023",
       "name": "Slack — desconexión",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
-      "position": [680, 220],
-      "credentials": {
-        "slackOAuth2Api": { "id": "REPLACE_SLACK_CRED_ID", "name": "Slack Atlas" }
-      }
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 220]
     },
     {
       "parameters": {
