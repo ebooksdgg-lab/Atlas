@@ -29,7 +29,7 @@ export default async function DashboardPage() {
           href="/connect"
           className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
         >
-          + Conectar perfil
+          + Conectar número
         </a>
       </div>
 

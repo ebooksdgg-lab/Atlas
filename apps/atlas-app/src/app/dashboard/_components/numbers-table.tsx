@@ -379,7 +379,7 @@ export function NumbersTable({
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
                   {rows.length === 0
-                    ? "Sin números importados. Hacé clic en + Conectar perfil para importar."
+                    ? "Sin números conectados. Hacé clic en + Conectar número para empezar."
                     : "Sin resultados para los filtros aplicados."}
                 </td>
               </tr>

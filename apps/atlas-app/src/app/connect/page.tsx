@@ -23,10 +23,10 @@ export default async function ConnectPage() {
 
   return (
     <div className="p-6 max-w-lg mx-auto">
-      <h1 className="text-2xl font-semibold mb-2">Conectar perfil</h1>
+      <h1 className="text-2xl font-semibold mb-2">Conectar número</h1>
       <p className="text-muted-foreground text-sm mb-8">
-        Importá todas las cuentas de WhatsApp Business de un perfil de Meta de una sola
-        vez. Repetí este paso por cada perfil que quieras conectar.
+        Vinculá un número de WhatsApp Business vía Meta Embedded Signup. Conectás uno
+        por vez; después le asignás un producto desde el dashboard.
       </p>
       <ConnectForm activeApp={activeApp} apiVersion={apiVersion} />
     </div>

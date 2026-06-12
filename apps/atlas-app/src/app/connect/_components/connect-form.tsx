@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import Script from "next/script"
 
 type AppInfo = { id: string; appId: string; configId: string | null; isActive: boolean }
@@ -8,8 +8,8 @@ type AppInfo = { id: string; appId: string; configId: string | null; isActive: b
 type FlowState =
   | { step: "idle" }
   | { step: "launching" }
-  | { step: "importing" }
-  | { step: "success"; total: number; created: number; updated: number }
+  | { step: "connecting" }
+  | { step: "success"; phoneNumber: string }
   | { step: "error"; message: string }
 
 export function ConnectForm({
@@ -22,40 +22,78 @@ export function ConnectForm({
   const [fbReady, setFbReady] = useState(false)
   const [flow, setFlow] = useState<FlowState>({ step: "idle" })
 
+  // Captured from Meta's WA_EMBEDDED_SIGNUP FINISH postMessage during the popup.
+  const phoneNumberIdRef = useRef("")
+  const wabaIdRef = useRef("")
+
   function handleConnect() {
     if (!activeApp || !fbReady) return
     setFlow({ step: "launching" })
+    phoneNumberIdRef.current = ""
+    wabaIdRef.current = ""
 
-    // Embedded Signup "all accounts" consent. We do NOT expect a single
-    // phone_number_id here — we only need the `code`, which the server exchanges
-    // for a token used to list every WABA/number of the profile.
+    // Meta delivers phone_number_id + waba_id via postMessage (NOT in the code).
+    const messageHandler = (event: MessageEvent) => {
+      if (
+        event.origin !== "https://www.facebook.com" &&
+        event.origin !== "https://web.facebook.com"
+      )
+        return
+      try {
+        const data = JSON.parse(event.data as string) as {
+          type?: string
+          event?: string
+          data?: { phone_number_id?: string; waba_id?: string }
+        }
+        if (data.type === "WA_EMBEDDED_SIGNUP" && data.event === "FINISH") {
+          phoneNumberIdRef.current = data.data?.phone_number_id ?? ""
+          wabaIdRef.current = data.data?.waba_id ?? ""
+        }
+      } catch {}
+    }
+    window.addEventListener("message", messageHandler)
+
     const handleResponse = async (response: FBLoginResponse) => {
+      window.removeEventListener("message", messageHandler)
+
       if (!response.authResponse?.code) {
         setFlow({ step: "error", message: "La conexión con Meta fue cancelada o falló." })
         return
       }
 
-      setFlow({ step: "importing" })
+      const code = response.authResponse.code
+      const phoneNumberId = phoneNumberIdRef.current
+      const wabaId = wabaIdRef.current
+
+      if (!phoneNumberId || !wabaId) {
+        setFlow({
+          step: "error",
+          message: "Meta no devolvió el número de teléfono. Intentá de nuevo.",
+        })
+        return
+      }
+
+      setFlow({ step: "connecting" })
 
       try {
-        const res = await fetch("/api/whatsapp/import", {
+        const res = await fetch("/api/whatsapp/connect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: response.authResponse.code, metaAppId: activeApp.id }),
+          body: JSON.stringify({ code, phoneNumberId, wabaId, metaAppId: activeApp.id }),
         })
 
         if (!res.ok) {
           const err = (await res.json()) as { error?: string }
-          setFlow({ step: "error", message: err.error ?? "Error al importar las cuentas." })
+          setFlow({ step: "error", message: err.error ?? "Error al conectar el número." })
           return
         }
 
-        const data = (await res.json()) as { total: number; created: number; updated: number }
-        setFlow({ step: "success", ...data })
+        const data = (await res.json()) as { phoneNumber: string }
+        setFlow({ step: "success", phoneNumber: data.phoneNumber })
       } catch (e) {
         setFlow({
           step: "error",
-          message: e instanceof Error ? e.message : "Error de red al importar.",
+          message: e instanceof Error ? e.message : "Error de red al conectar.",
         })
       }
     }
@@ -81,25 +119,24 @@ export function ConnectForm({
     return (
       <div className="rounded-lg border bg-card p-6 space-y-4 text-center">
         <p className="text-4xl">✅</p>
-        <p className="font-semibold text-lg">Perfil importado</p>
+        <p className="font-semibold text-lg">Número conectado</p>
+        <p className="text-muted-foreground font-mono">{flow.phoneNumber}</p>
         <p className="text-muted-foreground text-sm">
-          {flow.total} número{flow.total === 1 ? "" : "s"} encontrado
-          {flow.total === 1 ? "" : "s"} · {flow.created} nuevo
-          {flow.created === 1 ? "" : "s"} · {flow.updated} actualizado
-          {flow.updated === 1 ? "" : "s"}
+          Quedó como <span className="font-medium">sin asignar</span>. Asignale un
+          producto desde el dashboard.
         </p>
         <div className="flex gap-2 justify-center">
           <a
             href="/dashboard"
             className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90"
           >
-            Ir a asignar productos
+            Ir a asignar producto
           </a>
           <button
             onClick={() => setFlow({ step: "idle" })}
             className="rounded border border-input px-4 py-2 text-sm hover:bg-muted"
           >
-            Conectar otro perfil
+            Conectar otro número
           </button>
         </div>
       </div>
@@ -115,12 +152,12 @@ export function ConnectForm({
         <a href="/settings" className="underline font-medium">
           Configuración
         </a>{" "}
-        antes de conectar un perfil.
+        antes de conectar un número.
       </div>
     )
   }
 
-  // ─── Idle / importing / error ─────────────────────────────────────────────
+  // ─── Idle / connecting / error ────────────────────────────────────────────
 
   return (
     <>
@@ -160,21 +197,20 @@ export function ConnectForm({
 
         <button
           onClick={handleConnect}
-          disabled={!fbReady || flow.step === "launching" || flow.step === "importing"}
+          disabled={!fbReady || flow.step === "launching" || flow.step === "connecting"}
           className="w-full rounded-md bg-[#1877F2] text-white px-4 py-3 text-sm font-semibold hover:bg-[#166FE5] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {flow.step === "launching"
             ? "Abriendo ventana de Meta…"
-            : flow.step === "importing"
-              ? "Importando cuentas…"
+            : flow.step === "connecting"
+              ? "Conectando número…"
               : !fbReady
                 ? "Cargando SDK…"
-                : "Conectar perfil de Meta"}
+                : "Conectar número de WhatsApp"}
         </button>
 
         <p className="text-xs text-muted-foreground">
-          Importa todas las WABAs y números del perfil. Después asignás cada número a
-          un producto desde el dashboard.
+          Conectás un número por vez. Después le asignás un producto desde el dashboard.
         </p>
       </div>
     </>
