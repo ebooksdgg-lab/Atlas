@@ -51,16 +51,21 @@ export async function exchangeCodeForToken(params: {
   appId: string
   appSecret: string
 }): Promise<string> {
-  // The `code` comes from FB.login (JS SDK), which performs no browser redirect,
-  // so the code is NOT bound to any real redirect_uri. Meta requires redirect_uri
-  // to be sent EMPTY for this flow — omitting it makes Meta fall back to a default
-  // and fail with "redirect_uri is not identical".
+  // The `code` comes from FB.login (JS SDK) with config_id (Embedded Signup).
+  // For that flow the code is bound to the app ORIGIN registered under
+  // "Allowed Domains for the JavaScript SDK" — not to a callback URL and not empty.
+  // The redirect_uri here must match that origin exactly, including the trailing
+  // slash, or Meta fails with "redirect_uri is not identical".
+  const origin = (process.env.ATLAS_PUBLIC_URL ?? "https://atlas.ebooksdgg.lat/").replace(
+    /\/?$/,
+    "/"
+  )
   const url =
     `${GRAPH}/${API_VERSION}/oauth/access_token?` +
     new URLSearchParams({
       client_id: params.appId,
       client_secret: params.appSecret,
-      redirect_uri: "",
+      redirect_uri: origin,
       code: params.code,
     }).toString()
 

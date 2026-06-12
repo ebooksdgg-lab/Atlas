@@ -329,6 +329,9 @@ services:
       META_VERIFY_TOKEN: ${META_VERIFY_TOKEN}
       META_API_VERSION: ${META_API_VERSION}
       META_SYSTEM_USER_TOKEN: ${META_SYSTEM_USER_TOKEN}
+      # App origin registered in Meta "Allowed Domains for the JavaScript SDK";
+      # used as redirect_uri in the FB.login token exchange. Must end with /.
+      ATLAS_PUBLIC_URL: ${ATLAS_PUBLIC_URL:-https://atlas.${SERVER_DOMAIN}/}
       N8N_BASE_URL: ${N8N_BASE_URL}
       N8N_API_KEY: ${N8N_API_KEY}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
