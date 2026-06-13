@@ -104,7 +104,6 @@ export function ConnectForm({
         ...(activeApp.configId ? { config_id: activeApp.configId } : {}),
         response_type: "code",
         override_default_response_type: true,
-        scope: "whatsapp_business_management,whatsapp_business_messaging,business_management",
         extras: {
           setup: {},
           sessionInfoVersion: "3",
