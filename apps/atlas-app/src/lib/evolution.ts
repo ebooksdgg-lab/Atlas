@@ -87,6 +87,48 @@ export async function disableTypebot(instanceName: string): Promise<void> {
   } catch {}
 }
 
+// ─── Chatwoot integration ─────────────────────────────────────────────────────
+
+export interface SetChatwootParams {
+  instanceName: string
+  nameInbox: string
+}
+
+export async function setChatwootIntegration(
+  params: SetChatwootParams
+): Promise<number | null> {
+  const body = {
+    enabled: true,
+    accountId: process.env.CHATWOOT_ACCOUNT_ID ?? "1",
+    token: process.env.CHATWOOT_API_TOKEN ?? "",
+    url: (process.env.CHATWOOT_API_URL ?? "").replace(/\/$/, ""),
+    signMsg: true,
+    reopenConversation: true,
+    conversationPending: false,
+    nameInbox: params.nameInbox,
+    importContacts: false,
+    importMessages: false,
+    autoCreate: true,
+  }
+
+  const res = await call(
+    `/chatwoot/set/${encodeURIComponent(params.instanceName)}`,
+    { method: "POST", body: JSON.stringify(body) }
+  )
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Evolution setChatwoot failed (${res.status}): ${text}`)
+  }
+
+  // Extract inbox ID from Evolution's response if present
+  const data = (await res.json()) as {
+    chatwoot?: { inboxId?: number }
+    inboxId?: number
+  } | null
+  return data?.chatwoot?.inboxId ?? data?.inboxId ?? null
+}
+
 // ─── Typebot ──────────────────────────────────────────────────────────────────
 
 export interface SetTypebotParams {

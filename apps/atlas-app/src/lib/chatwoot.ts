@@ -27,52 +27,6 @@ async function call(path: string, options: RequestInit = {}): Promise<Response> 
   return res
 }
 
-// ─── Inboxes ──────────────────────────────────────────────────────────────────
-
-export interface CreateInboxParams {
-  name: string
-  phoneNumber: string   // E.164, e.g. "+5491123456789"
-  accessToken: string
-  phoneNumberId: string
-  wabaId: string
-}
-
-export interface ChatwootInbox {
-  id: number
-  name: string
-  channel_type: string
-}
-
-export async function createWhatsAppInbox(
-  params: CreateInboxParams
-): Promise<ChatwootInbox> {
-  const body = {
-    name: params.name,
-    channel: {
-      type: "whatsapp",
-      phone_number: params.phoneNumber,
-      provider: "whatsapp_cloud",
-      provider_config: {
-        api_key: params.accessToken,
-        phone_number_id: params.phoneNumberId,
-        business_account_id: params.wabaId,
-      },
-    },
-  }
-
-  const res = await call(`/api/v1/accounts/${accountId()}/inboxes`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Chatwoot createInbox failed (${res.status}): ${text}`)
-  }
-
-  return (await res.json()) as ChatwootInbox
-}
-
 // ─── Labels ───────────────────────────────────────────────────────────────────
 
 interface ChatwootLabelListResponse {

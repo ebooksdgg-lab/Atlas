@@ -5,8 +5,8 @@ import { db } from "@/lib/db"
 import { numbers, products, eventLog } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { decrypt } from "@/lib/crypto"
-import { createCloudInstance, deleteInstance, setTypebot, disableTypebot } from "@/lib/evolution"
-import { createWhatsAppInbox, ensureLabel } from "@/lib/chatwoot"
+import { createCloudInstance, deleteInstance, setTypebot, disableTypebot, setChatwootIntegration } from "@/lib/evolution"
+import { ensureLabel } from "@/lib/chatwoot"
 
 /**
  * Assign a product to an imported number.
@@ -142,17 +142,13 @@ export async function POST(
     }
   }
 
-  // 3. Chatwoot inbox
+  // 3. Chatwoot inbox via Evolution integration (avoids Chatwoot registering the number with Meta)
   let chatwootInboxId: number | null = null
   try {
-    const inbox = await createWhatsAppInbox({
-      name: `${number.displayName ?? cleanPhone} — ${product.name}`,
-      phoneNumber: `+${cleanPhone}`,
-      accessToken,
-      phoneNumberId: number.phoneNumberId,
-      wabaId: number.wabaId,
+    chatwootInboxId = await setChatwootIntegration({
+      instanceName: evoInstance.instanceName,
+      nameInbox: `${number.displayName ?? cleanPhone} — ${product.name}`,
     })
-    chatwootInboxId = inbox.id
     await ensureLabel(`producto-${product.slug}`)
   } catch (e) {
     console.error("[assign] Chatwoot error:", e)
