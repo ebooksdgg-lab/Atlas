@@ -1,5 +1,5 @@
 /**
- * Evolution API client — Cloud API (WHATSAPP-CLOUD) integration
+ * Evolution API client — WHATSAPP-BUSINESS integration (official Cloud API)
  * Endpoints follow Evolution API v2 (atendai/evolution-api:latest)
  * All calls use the global apikey header.
  */
@@ -41,18 +41,11 @@ export async function createCloudInstance(
 ): Promise<{ instanceName: string }> {
   const body = {
     instanceName: params.instanceName,
-    qrcode: false,
+    integration: "WHATSAPP-BUSINESS",
     number: params.phoneNumber,
-    integration: "WHATSAPP-CLOUD",
-    reject_call: false,
-    groups_ignore: false,
-    always_online: false,
-    read_messages: true,
-    read_status: false,
-    sync_full_history: false,
-    // Cloud API credentials — accepted in create by Evolution v2.1+
+    token: params.accessToken,
     businessId: params.wabaId,
-    accessTokenWaBusiness: params.accessToken,
+    qrcode: false,
   }
 
   const res = await call("/instance/create", {
