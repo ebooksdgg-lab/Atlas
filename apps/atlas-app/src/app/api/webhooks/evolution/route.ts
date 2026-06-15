@@ -12,8 +12,14 @@ import { sendDisconnectAlert, sendQualityAlert } from "@/lib/alerts"
 export async function POST(req: NextRequest) {
   const secret = process.env.EVOLUTION_WEBHOOK_SECRET
   if (secret) {
-    const header = req.headers.get("x-evolution-secret") ?? ""
-    if (header !== secret) {
+    // Evolution v2.2.3's GLOBAL webhook cannot send custom headers
+    // (WEBHOOK_GLOBAL_HEADERS does not exist), so accept the secret from either
+    // the x-evolution-secret header or a ?secret= query param on WEBHOOK_GLOBAL_URL.
+    const provided =
+      req.headers.get("x-evolution-secret") ??
+      req.nextUrl.searchParams.get("secret") ??
+      ""
+    if (provided !== secret) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
   }

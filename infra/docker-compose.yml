@@ -107,9 +107,11 @@ services:
       CHATWOOT_ENABLED: "true"
 
       WEBHOOK_GLOBAL_ENABLED: "true"
-      WEBHOOK_GLOBAL_URL: "https://atlas.${SERVER_DOMAIN}/api/webhooks/evolution"
+      # Evolution 2.2.3's global webhook can't send custom headers (no
+      # WEBHOOK_GLOBAL_HEADERS), so the shared secret travels as a query param;
+      # Atlas validates it from the header OR ?secret=.
+      WEBHOOK_GLOBAL_URL: "https://atlas.${SERVER_DOMAIN}/api/webhooks/evolution?secret=${EVOLUTION_WEBHOOK_SECRET}"
       WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
-      WEBHOOK_GLOBAL_HEADERS: '{"x-evolution-secret": "${EVOLUTION_WEBHOOK_SECRET}"}'
       WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
       WEBHOOK_EVENTS_CONNECTION_UPDATE: "true"
       WEBHOOK_EVENTS_MESSAGES_UPDATE: "true"

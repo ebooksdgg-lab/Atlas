@@ -106,13 +106,14 @@ export async function setChatwootIntegration(
     accountId: process.env.CHATWOOT_ACCOUNT_ID ?? "1",
     token: process.env.CHATWOOT_API_TOKEN ?? "",
     url: (process.env.CHATWOOT_API_URL ?? "").replace(/\/$/, ""),
-    signMsg: true,
     reopenConversation: true,
     conversationPending: false,
     nameInbox: params.nameInbox,
     importContacts: false,
     importMessages: false,
     autoCreate: true,
+    // false → outbound messages are NOT prefixed with the agent name ("Gabriel: …")
+    signMsg: false,
   }
 
   const res = await call(
