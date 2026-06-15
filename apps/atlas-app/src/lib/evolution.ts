@@ -42,7 +42,11 @@ export async function createCloudInstance(
   const body = {
     instanceName: params.instanceName,
     integration: "WHATSAPP-BUSINESS",
-    number: params.phoneNumber,
+    // Evolution stores `number` and uses it as the phone_number_id: it matches
+    // inbound webhooks via value.metadata.phone_number_id === instance.number AND
+    // builds the outbound Graph URL as /{number}/messages. So `number` must be the
+    // phone_number_id, NOT the display phone number.
+    number: params.phoneNumberId,
     token: params.accessToken,
     businessId: params.wabaId,
     qrcode: false,
