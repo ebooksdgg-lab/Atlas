@@ -105,6 +105,9 @@ services:
 
       # Native Chatwoot integration (enabled per-instance via POST /chatwoot/set)
       CHATWOOT_ENABLED: "true"
+      # Point the (unused) history-import DB at the real Chatwoot DB so Evolution
+      # stops resolving the default literal `host` placeholder → silences EAI_AGAIN.
+      CHATWOOT_IMPORT_DATABASE_CONNECTION_URI: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/chatwoot?sslmode=disable
 
       WEBHOOK_GLOBAL_ENABLED: "true"
       # Evolution 2.2.3's global webhook can't send custom headers (no
