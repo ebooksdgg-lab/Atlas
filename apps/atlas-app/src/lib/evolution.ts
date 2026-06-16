@@ -82,13 +82,9 @@ export async function deleteInstance(instanceName: string): Promise<void> {
 }
 
 export async function disableTypebot(instanceName: string): Promise<void> {
-  // Non-fatal — silence errors
-  try {
-    await call(`/typebot/set/${encodeURIComponent(instanceName)}`, {
-      method: "POST",
-      body: JSON.stringify({ enabled: false }),
-    })
-  } catch {}
+  // Evolution 2.2.3 has no /typebot/set toggle; "disabling" = removing the bot(s)
+  // from the instance. clearTypebots is best-effort and never throws.
+  await clearTypebots(instanceName)
 }
 
 // ─── Chatwoot integration ─────────────────────────────────────────────────────
@@ -143,10 +139,22 @@ export interface SetTypebotParams {
 }
 
 export async function setTypebot(params: SetTypebotParams): Promise<void> {
+  const instance = encodeURIComponent(params.instanceName)
+
+  // Idempotency: Evolution 2.2.3 createBot is NOT idempotent. It rejects a second
+  // bot when one already exists (url+typebot → "Typebot already exists") and a
+  // `triggerType:'all'` bot is EXCLUSIVE ("you cannot have more bots while it is
+  // active"). So on re-assignment (new product → new flow) a plain create 400s.
+  // We clear-then-create: delete every existing bot on the instance, then create
+  // one fresh — guaranteeing exactly one `all`-trigger bot for the current product.
+  await clearTypebots(params.instanceName)
+
   const body = {
     enabled: true,
     url: params.viewerUrl,
     typebot: params.typebotId,
+    // Fire the bot on EVERY inbound message (Evolution drives Typebot per message).
+    triggerType: "all",
     expire: 0,
     keywordFinish: "",
     delayMessage: 1000,
@@ -160,13 +168,43 @@ export async function setTypebot(params: SetTypebotParams): Promise<void> {
   // Evolution v2.2.3 exposes POST /typebot/create/{instance} — there is NO /set route.
   // The TypebotRouter only registers: create/find/fetch/update/delete/settings/
   // fetchSettings/start/changeStatus/fetchSessions/ignoreJid.
-  const res = await call(
-    `/typebot/create/${encodeURIComponent(params.instanceName)}`,
-    { method: "POST", body: JSON.stringify(body) }
-  )
+  const res = await call(`/typebot/create/${instance}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
 
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Evolution setTypebot failed (${res.status}): ${text}`)
+  }
+}
+
+/**
+ * Delete every Typebot bot configured on an instance. Best-effort: a failed
+ * lookup or delete is logged and swallowed so it never blocks (re)provisioning.
+ * Used to make setTypebot idempotent given Evolution's non-idempotent createBot.
+ */
+async function clearTypebots(instanceName: string): Promise<void> {
+  const instance = encodeURIComponent(instanceName)
+  try {
+    const res = await call(`/typebot/find/${instance}`, { method: "GET" })
+    if (!res.ok) return
+    const data = (await res.json()) as unknown
+    // Evolution returns an array of bot records; be defensive about wrappers.
+    const bots: Array<{ id?: string }> = Array.isArray(data)
+      ? (data as Array<{ id?: string }>)
+      : ((data as { data?: Array<{ id?: string }> })?.data ?? [])
+    for (const bot of bots) {
+      if (!bot?.id) continue
+      try {
+        await call(`/typebot/delete/${encodeURIComponent(bot.id)}/${instance}`, {
+          method: "DELETE",
+        })
+      } catch (e) {
+        console.error(`[clearTypebots] delete ${bot.id} failed:`, e)
+      }
+    }
+  } catch (e) {
+    console.error("[clearTypebots] find failed:", e)
   }
 }
