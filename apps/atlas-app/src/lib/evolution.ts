@@ -157,9 +157,11 @@ export async function setTypebot(params: SetTypebotParams): Promise<void> {
     debounceTime: 10,
   }
 
-  // Evolution v2: POST /typebot/set/{instance} or /typebot/create/{instance}
+  // Evolution v2.2.3 exposes POST /typebot/create/{instance} — there is NO /set route.
+  // The TypebotRouter only registers: create/find/fetch/update/delete/settings/
+  // fetchSettings/start/changeStatus/fetchSessions/ignoreJid.
   const res = await call(
-    `/typebot/set/${encodeURIComponent(params.instanceName)}`,
+    `/typebot/create/${encodeURIComponent(params.instanceName)}`,
     { method: "POST", body: JSON.stringify(body) }
   )
 
