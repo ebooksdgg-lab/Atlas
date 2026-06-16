@@ -74,7 +74,9 @@ services:
   # ─── Evolution API ─────────────────────────────────────────────
   # Listens on port 8080. NPM proxies: evolution.ebooksdgg.lat → evolution-api:8080
   evolution-api:
-    image: atendai/evolution-api:latest
+    # Pinned to the digest running on the server (verified: /evolution/package.json → 2.2.3).
+    # Was :latest; mutable tag never re-pulled in 16mo. Re-pin if you intentionally upgrade.
+    image: atendai/evolution-api@sha256:1a69aaeea408ccf753e8c9ad5fa91146a478ce4d3609577fd73ad2c52e69f8ae
     restart: unless-stopped
     environment:
       SERVER_URL: https://evolution.${SERVER_DOMAIN}
@@ -152,7 +154,8 @@ services:
   # ─── Typebot builder ───────────────────────────────────────────
   # Listens on port 3000. NPM proxies: typebot.ebooksdgg.lat → typebot-builder:3000
   typebot-builder:
-    image: baptistearno/typebot-builder:latest
+    # Pinned to the digest running on the server (was :latest, image id f1b2d3a83a7f, ~2mo old).
+    image: baptistearno/typebot-builder@sha256:3e1a6447784aea42500a51226edcf36ab2bfb9803058b0af3a390f07e9dff11a
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/typebot
@@ -193,7 +196,8 @@ services:
   # ─── Typebot viewer ────────────────────────────────────────────
   # Listens on port 3000. NPM proxies: typebot-viewer.ebooksdgg.lat → typebot-viewer:3000
   typebot-viewer:
-    image: baptistearno/typebot-viewer:latest
+    # Pinned to the digest running on the server (was :latest, image id 1789695d0a77, ~2mo old).
+    image: baptistearno/typebot-viewer@sha256:80ab87853ae15b2f9cc1fe2a405b28106cf0bd7033c4ed1f04353d19301b021e
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/typebot
@@ -224,7 +228,8 @@ services:
   # Listens on port 3000. NPM proxies: chat.ebooksdgg.lat → chatwoot-rails:3000
   # First run: docker compose run --rm chatwoot-rails bundle exec rails db:chatwoot_prepare
   chatwoot-rails:
-    image: chatwoot/chatwoot:latest
+    # Pinned to the digest running on the server (was :latest, image id 6cf03d1b46f1, ~4wk old).
+    image: chatwoot/chatwoot@sha256:befc1a3dd135858233e73a6254fecabe3170727830dab0eb79fbc67304c6a448
     restart: unless-stopped
     command: bundle exec rails server -b 0.0.0.0 -p 3000
     environment:
@@ -275,7 +280,8 @@ services:
 
   # ─── Chatwoot (Sidekiq — background jobs) ─────────────────────
   chatwoot-sidekiq:
-    image: chatwoot/chatwoot:latest
+    # Pinned to the digest running on the server (was :latest, image id 6cf03d1b46f1, ~4wk old).
+    image: chatwoot/chatwoot@sha256:befc1a3dd135858233e73a6254fecabe3170727830dab0eb79fbc67304c6a448
     restart: unless-stopped
     command: bundle exec sidekiq -C config/sidekiq.yml
     environment:
