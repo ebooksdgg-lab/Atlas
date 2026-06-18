@@ -50,6 +50,18 @@ grep -qF "split('-')[1]}/continueChat" "$TYPEBOT_SVC"
 ! grep -qF '${data.sessionId}/continueChat' "$TYPEBOT_SVC"
 echo "    patch OK (2 markers, refire removed, legit continueChat kept)"
 
+# baileys wants jimp ^1.6 while the root pins ^0.16 -> npm ERESOLVE. Build with
+# --legacy-peer-deps (Evolution's Dockerfile uses a bare `RUN npm install`).
+echo "==> Relaxing peer-deps in cloned Dockerfile (jimp baileys vs root conflict)"
+if grep -qE '^[[:space:]]*RUN npm install.*--legacy-peer-deps' Dockerfile; then
+  echo "    already has --legacy-peer-deps"
+elif grep -qE '^[[:space:]]*RUN npm install([[:space:]]|$)' Dockerfile; then
+  sed -i -E 's/^([[:space:]]*RUN npm install)([[:space:]]|$)/\1 --legacy-peer-deps\2/' Dockerfile
+  echo "    patched: $(grep -nE '^[[:space:]]*RUN npm install' Dockerfile)"
+else
+  echo "ERROR: no 'RUN npm install' line found in Dockerfile to patch"; exit 1
+fi
+
 echo "==> Building $IMAGE (Evolution's own Dockerfile; a few minutes)"
 docker build -t "$IMAGE" .
 
