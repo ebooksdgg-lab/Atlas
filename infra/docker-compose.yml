@@ -76,7 +76,12 @@ services:
   evolution-api:
     # Pinned to the digest running on the server (verified: /evolution/package.json → 2.2.3).
     # Was :latest; mutable tag never re-pulled in 16mo. Re-pin if you intentionally upgrade.
-    image: atendai/evolution-api@sha256:1a69aaeea408ccf753e8c9ad5fa91146a478ce4d3609577fd73ad2c52e69f8ae
+    #
+    # ── Atlas custom build: 2.2.3 + typebot-no-refire patch (see infra/patches/README.md).
+    #    Build the image FIRST on the server:  bash infra/build-evolution-patched.sh
+    #    ROLLBACK: re-comment the custom line below and uncomment the pinned digest.
+    # image: atendai/evolution-api@sha256:1a69aaeea408ccf753e8c9ad5fa91146a478ce4d3609577fd73ad2c52e69f8ae
+    image: atlas-evolution:2.2.3-atlas1
     restart: unless-stopped
     environment:
       SERVER_URL: https://evolution.${SERVER_DOMAIN}

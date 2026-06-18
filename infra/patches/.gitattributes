@@ -1,0 +1,2 @@
+# Patches must stay LF so `git apply` matches the (LF) upstream source on Linux.
+*.patch text eol=lf

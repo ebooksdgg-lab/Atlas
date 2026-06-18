@@ -1,0 +1,188 @@
+diff --git a/src/api/integrations/chatbot/typebot/services/typebot.service.ts b/src/api/integrations/chatbot/typebot/services/typebot.service.ts
+index f0e4dc7..ecc9a60 100644
+--- a/src/api/integrations/chatbot/typebot/services/typebot.service.ts
++++ b/src/api/integrations/chatbot/typebot/services/typebot.service.ts
+@@ -637,87 +637,12 @@ export class TypebotService {
+           session = data.session;
+         }
+ 
+-        if (data.messages.length === 0) {
+-          const content = getConversationMessage(msg.message);
+-
+-          if (!content) {
+-            if (unknownMessage) {
+-              this.waMonitor.waInstances[instance.name].textMessage(
+-                {
+-                  number: remoteJid.split('@')[0],
+-                  delay: delayMessage || 1000,
+-                  text: unknownMessage,
+-                },
+-                false,
+-              );
+-
+-              sendTelemetry('/message/sendText');
+-            }
+-            return;
+-          }
+-
+-          if (keywordFinish && content.toLowerCase() === keywordFinish.toLowerCase()) {
+-            if (keepOpen) {
+-              await this.prismaRepository.integrationSession.update({
+-                where: {
+-                  id: session.id,
+-                },
+-                data: {
+-                  status: 'closed',
+-                },
+-              });
+-            } else {
+-              await this.prismaRepository.integrationSession.deleteMany({
+-                where: {
+-                  botId: findTypebot.id,
+-                  remoteJid: remoteJid,
+-                },
+-              });
+-            }
+-            return;
+-          }
+-
+-          try {
+-            const version = this.configService.get<Typebot>('TYPEBOT').API_VERSION;
+-            let urlTypebot: string;
+-            let reqData: {};
+-            if (version === 'latest') {
+-              urlTypebot = `${url}/api/v1/sessions/${data.sessionId}/continueChat`;
+-              reqData = {
+-                message: content,
+-              };
+-            } else {
+-              urlTypebot = `${url}/api/v1/sendMessage`;
+-              reqData = {
+-                message: content,
+-                sessionId: data.sessionId,
+-              };
+-            }
+-
+-            const request = await axios.post(urlTypebot, reqData);
+-
+-            await this.sendWAMessage(
+-              instance,
+-              session,
+-              {
+-                expire: expire,
+-                keywordFinish: keywordFinish,
+-                delayMessage: delayMessage,
+-                unknownMessage: unknownMessage,
+-                listeningFromMe: listeningFromMe,
+-                stopBotFromMe: stopBotFromMe,
+-                keepOpen: keepOpen,
+-              },
+-              remoteJid,
+-              request.data.messages,
+-              request.data.input,
+-              request.data.clientSideActions,
+-            );
+-          } catch (error) {
+-            this.logger.error(error);
+-            return;
+-          }
+-        }
++        // Atlas patch (no-refire): an empty viewer turn means an intentionally
++        // silent Typebot branch. Evolution's default behaviour re-fires a
++        // continueChat with the user's text, which makes a silent branch emit the
++        // SIBLING branch's content. End the turn instead (no continueChat, no
++        // unknownMessage). The messages/input, if any, were already sent above.
++        if (data.messages.length === 0) return;
+ 
+         await this.sendWAMessage(
+           instance,
+@@ -783,86 +708,9 @@ export class TypebotService {
+         data?.clientSideActions,
+       );
+ 
+-      if (data.messages.length === 0) {
+-        if (!content) {
+-          if (unknownMessage) {
+-            this.waMonitor.waInstances[instance.name].textMessage(
+-              {
+-                number: remoteJid.split('@')[0],
+-                delay: delayMessage || 1000,
+-                text: unknownMessage,
+-              },
+-              false,
+-            );
+-
+-            sendTelemetry('/message/sendText');
+-          }
+-          return;
+-        }
+-
+-        if (keywordFinish && content.toLowerCase() === keywordFinish.toLowerCase()) {
+-          if (keepOpen) {
+-            await this.prismaRepository.integrationSession.update({
+-              where: {
+-                id: session.id,
+-              },
+-              data: {
+-                status: 'closed',
+-              },
+-            });
+-          } else {
+-            await this.prismaRepository.integrationSession.deleteMany({
+-              where: {
+-                botId: findTypebot.id,
+-                remoteJid: remoteJid,
+-              },
+-            });
+-          }
+-
+-          return;
+-        }
+-
+-        let request: any;
+-        try {
+-          const version = this.configService.get<Typebot>('TYPEBOT').API_VERSION;
+-          let urlTypebot: string;
+-          let reqData: {};
+-          if (version === 'latest') {
+-            urlTypebot = `${url}/api/v1/sessions/${data.sessionId}/continueChat`;
+-            reqData = {
+-              message: content,
+-            };
+-          } else {
+-            urlTypebot = `${url}/api/v1/sendMessage`;
+-            reqData = {
+-              message: content,
+-              sessionId: data.sessionId,
+-            };
+-          }
+-          request = await axios.post(urlTypebot, reqData);
+-
+-          await this.sendWAMessage(
+-            instance,
+-            session,
+-            {
+-              expire: expire,
+-              keywordFinish: keywordFinish,
+-              delayMessage: delayMessage,
+-              unknownMessage: unknownMessage,
+-              listeningFromMe: listeningFromMe,
+-              stopBotFromMe: stopBotFromMe,
+-              keepOpen: keepOpen,
+-            },
+-            remoteJid,
+-            request.data.messages,
+-            request.data.input,
+-            request.data.clientSideActions,
+-          );
+-        } catch (error) {
+-          this.logger.error(error);
+-          return;
+-        }
+-      }
++      // Atlas patch (no-refire): see comment in the expired-session branch above.
++      // Empty viewer turn = end of turn, no continueChat re-fire, no unknownMessage.
++      if (data.messages.length === 0) return;
+       return;
+     }
+ 
