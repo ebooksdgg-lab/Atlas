@@ -1,0 +1,16 @@
+# Atlas — patched Evolution API.
+#
+# Derives from the pinned, verified 2.2.3 digest (which already ships a compiled
+# dist/main.js + node_modules) and applies the Typebot "no-refire" fix directly to
+# the bundle. We do NOT rebuild from source: the 2.2.3 source no longer compiles
+# against today's transitive deps (baileys git HEAD dropped offerCall/terminateCall;
+# axios changed AxiosHeaderValue) — none of which is our change.
+#
+# Build context = infra/ . Build with: bash infra/build-evolution-patched.sh
+# Root cause + runbook: infra/patches/README.md
+FROM atendai/evolution-api@sha256:1a69aaeea408ccf753e8c9ad5fa91146a478ce4d3609577fd73ad2c52e69f8ae
+
+# Self-verifying node patch: neutralizes the two empty-turn re-fire blocks, fails
+# the build on any anchor/count mismatch. Leaves the legit opened-session continueChat.
+COPY patches/patch-bundle-norefire.cjs /tmp/patch-bundle-norefire.cjs
+RUN node /tmp/patch-bundle-norefire.cjs && rm -f /tmp/patch-bundle-norefire.cjs

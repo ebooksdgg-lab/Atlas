@@ -3,9 +3,18 @@
 Custom build of **Evolution API v2.2.3** that makes an empty Typebot turn END the
 turn, instead of re-firing a second `continueChat`.
 
-- Patch: [`typebot-no-refire.patch`](./typebot-no-refire.patch)
+**Build method: derive from the digest + patch the compiled bundle.** We do NOT
+rebuild from source — the 2.2.3 source no longer compiles against today's transitive
+deps (baileys git HEAD dropped `offerCall`/`terminateCall`; axios changed
+`AxiosHeaderValue`), none of which is our change. Instead we `FROM` the pinned 2.2.3
+digest (which already ships `dist/main.js` + `node_modules`) and apply the fix to the
+bundle with a self-verifying node script.
+
+- Bundle patch (applied at build): [`patch-bundle-norefire.cjs`](./patch-bundle-norefire.cjs)
+- Dockerfile: [`../Dockerfile.evolution`](../Dockerfile.evolution)
 - Build: [`../build-evolution-patched.sh`](../build-evolution-patched.sh) → image `atlas-evolution:2.2.3-atlas1`
 - Compose: `evolution-api.image` already points to the custom image (pinned digest kept commented for rollback).
+- [`typebot-no-refire.patch`](./typebot-no-refire.patch) — the equivalent **source** change, kept as documentation of intent (NOT used by the build).
 
 ---
 
@@ -47,14 +56,20 @@ so upgrading does NOT fix it. No upstream issue/fix published.
 
 ## What the patch changes
 
-Both empty-turn blocks become a clean end of turn:
+The two empty-turn re-fire blocks (expired-session + no-session branches of
+`processTypebot`) are neutralized. In the **source** the intent is:
 
 ```ts
 if (data.messages.length === 0) return;   // no continueChat re-fire, no unknownMessage
 ```
 
+In the **bundle**, `patch-bundle-norefire.cjs` finds each block via a unique anchor
+(`x.messages.length===0){…` and `b.messages.length===0){…`), brace-matches its body,
+and replaces the body with `{return}` — which removes the two re-fire `continueChat`
+calls. The script asserts `continueChat` goes **3 → 1** and fails the build otherwise.
+
 - The legit `continueChat` of the **opened-session** path (a user answering an
-  input) is untouched.
+  input, the only one using `sessionId.split("-")[1]`) is untouched.
 - If a bot's first reachable block is an input, the input is still presented (it was
   already sent before this block); the trigger message is no longer consumed as the
   answer — more correct, and not relied on by any current bot (see audit).
@@ -86,19 +101,22 @@ Net: deploying the patched image affects only Natacha's bot behaviour.
 bash infra/build-evolution-patched.sh      # → atlas-evolution:2.2.3-atlas1
 ```
 
-### 2. Verify the image (throwaway containers — no deploy yet)
+### 2. Verify the image (the build script already does this; here to re-check by hand)
+
+`build-evolution-patched.sh` fails if the bundle patch doesn't land. To re-check the
+built image manually (throwaway containers — no deploy yet):
 
 ```bash
-# a) version is still 2.2.3 (drop-in)
-docker run --rm --entrypoint sh atlas-evolution:2.2.3-atlas1 -c 'grep "\"version\"" package.json | head -1'
-#    → "version": "2.2.3",
-
-# b) the bundle lost the two refire continueChat calls (stock=3 → patched=1)
+# a) the bundle lost the two refire continueChat calls (stock=3 → patched=1)
 docker run --rm --entrypoint sh atlas-evolution:2.2.3-atlas1 -c 'grep -o continueChat dist/main.js | wc -l'
 #    → 1
-#    (compare against stock if you want:)
+#    (compare against the stock digest if you want:)
 docker run --rm --entrypoint sh atendai/evolution-api@sha256:1a69aaeea408ccf753e8c9ad5fa91146a478ce4d3609577fd73ad2c52e69f8ae -c 'grep -o continueChat dist/main.js | wc -l'
 #    → 3
+
+# b) version is still 2.2.3 (drop-in)
+docker run --rm --entrypoint sh atlas-evolution:2.2.3-atlas1 -c 'grep "\"version\"" package.json | head -1'
+#    → "version": "2.2.3",
 ```
 
 ### 3. Deploy (scoped to evolution-api only)
