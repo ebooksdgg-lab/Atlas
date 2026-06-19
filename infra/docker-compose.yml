@@ -15,6 +15,7 @@ volumes:
   redis-data:
   evolution-instances:
   typebot-uploads:
+  minio-data:
   chatwoot-storage:
   chatwoot-public:
 
@@ -77,11 +78,12 @@ services:
     # Pinned to the digest running on the server (verified: /evolution/package.json → 2.2.3).
     # Was :latest; mutable tag never re-pulled in 16mo. Re-pin if you intentionally upgrade.
     #
-    # ── Atlas custom build: 2.2.3 + typebot-no-refire patch (see infra/patches/README.md).
+    # ── Atlas custom build: 2.2.3 + 2 bundle patches (see infra/patches/README.md):
+    #    #1 typebot-no-refire (silent branch)   #2 media mimetype=false crash fix.
     #    Build the image FIRST on the server:  bash infra/build-evolution-patched.sh
     #    ROLLBACK: re-comment the custom line below and uncomment the pinned digest.
     # image: atendai/evolution-api@sha256:1a69aaeea408ccf753e8c9ad5fa91146a478ce4d3609577fd73ad2c52e69f8ae
-    image: atlas-evolution:2.2.3-atlas1
+    image: atlas-evolution:2.2.3-atlas2
     restart: unless-stopped
     environment:
       SERVER_URL: https://evolution.${SERVER_DOMAIN}
@@ -129,6 +131,8 @@ services:
 
       DEL_INSTANCE: "false"
       CONFIG_SESSION_PHONE_CLIENT: Atlas
+      TYPEBOT_ENABLED: "true"
+      TYPEBOT_API_VERSION: latest
       CONFIG_SESSION_PHONE_NAME: Chrome
 
       LOG_LEVEL: ERROR
@@ -156,6 +160,31 @@ services:
           cpus: "1.0"
           memory: 2G
 
+  # ─── MinIO (object storage dedicado para media de Typebot) ─────
+  # Propio del proyecto atlas — NO el MinIO de infra (ese queda intacto y sin internet).
+  # NO publica puertos al host: se accede solo por red interna y por NPM.
+  # NPM proxies: s3.ebooksdgg.lat → minio:9000  (path-style, sin MINIO_DOMAIN).
+  # Bucket `typebot` (public-read) + access key dedicada → ver infra/patches/README o runbook.
+  minio:
+    image: minio/minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # CORS scopeado al builder de Typebot (el browser sube directo al presigned URL).
+      MINIO_API_CORS_ALLOW_ORIGIN: https://typebot.${SERVER_DOMAIN}
+    volumes:
+      - minio-data:/data
+    networks:
+      - atlas-net
+      - proxy_default
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1G
+
   # ─── Typebot builder ───────────────────────────────────────────
   # Listens on port 3000. NPM proxies: typebot.ebooksdgg.lat → typebot-builder:3000
   typebot-builder:
@@ -178,6 +207,14 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_SECURE: "true"
       HOSTNAME: "0.0.0.0"
+      # ─── S3 (MinIO dedicado) para media uploads ───
+      S3_ACCESS_KEY: ${TYPEBOT_S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${TYPEBOT_S3_SECRET_KEY}
+      S3_BUCKET: typebot
+      S3_ENDPOINT: s3.${SERVER_DOMAIN}
+      S3_PORT: "443"
+      S3_SSL: "true"
+      S3_REGION: us-east-1
     volumes:
       - typebot-uploads:/app/public/uploads
     networks:
@@ -211,6 +248,14 @@ services:
       NEXTAUTH_URL: https://typebot.${SERVER_DOMAIN}
       NEXT_PUBLIC_VIEWER_URL: https://typebot-viewer.${SERVER_DOMAIN}
       HOSTNAME: "0.0.0.0"
+      # ─── S3 (MinIO dedicado) para media uploads ───
+      S3_ACCESS_KEY: ${TYPEBOT_S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${TYPEBOT_S3_SECRET_KEY}
+      S3_BUCKET: typebot
+      S3_ENDPOINT: s3.${SERVER_DOMAIN}
+      S3_PORT: "443"
+      S3_SSL: "true"
+      S3_REGION: us-east-1
     networks:
       - atlas-net
       - proxy_default

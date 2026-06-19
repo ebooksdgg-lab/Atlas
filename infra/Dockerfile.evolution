@@ -10,7 +10,14 @@
 # Root cause + runbook: infra/patches/README.md
 FROM atendai/evolution-api@sha256:1a69aaeea408ccf753e8c9ad5fa91146a478ce4d3609577fd73ad2c52e69f8ae
 
-# Self-verifying node patch: neutralizes the two empty-turn re-fire blocks, fails
-# the build on any anchor/count mismatch. Leaves the legit opened-session continueChat.
+# Self-verifying node patches (each fails the build on any anchor/count mismatch):
+#   1) no-refire: neutralizes the two empty-turn re-fire blocks (silent Typebot branch).
+#      Leaves the legit opened-session continueChat.
+#   2) media:     5 send-path fixes so Typebot-uploaded media reaches WhatsApp via Cloud
+#      API — isImage-from-mediaType, filename-only-on-documents, and failed-send guards
+#      (see infra/patches/patch-bundle-media.cjs / README.md).
 COPY patches/patch-bundle-norefire.cjs /tmp/patch-bundle-norefire.cjs
-RUN node /tmp/patch-bundle-norefire.cjs && rm -f /tmp/patch-bundle-norefire.cjs
+COPY patches/patch-bundle-media.cjs /tmp/patch-bundle-media.cjs
+RUN node /tmp/patch-bundle-norefire.cjs \
+ && node /tmp/patch-bundle-media.cjs \
+ && rm -f /tmp/patch-bundle-norefire.cjs /tmp/patch-bundle-media.cjs
