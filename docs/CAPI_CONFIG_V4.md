@@ -6,19 +6,58 @@
 > manuales por número.
 >
 > Derivar esto costó días de pruebas contra la Graph API. Este doc es la fuente de verdad.
-> Última validación: 2026-06-24.
+> Última validación EN VIVO: 2026-06-25 (ver "UPDATE" abajo).
 
 ---
 
-## TL;DR
+## TL;DR (actualizado tras verificación en vivo 2026-06-25)
 
-- El único camino **cero-touch** es un **config del Embedded Signup con el producto
-  Conversions API activado**. Eso hace que Meta auto-cree el dataset `"<WABA> Event Data"`,
-  lo conecte a la WABA, y le dé `UPLOAD` automático al **BISU token** que devuelve el signup.
-- **NO** crear datasets a mano: el BISU no llega a un dataset que no se ató durante el signup
-  (da `subcode 33 / Missing Permission`).
+- **Lo que importa es que el signup conceda `ads_management`** (el config V4 con productos de
+  Ads/CTWA lo hace). Con eso, el **BISU token** del signup **postea eventos a los datasets del
+  business** — incluidos datasets creados a mano — **siempre que el system user de la integración
+  ("<App> System User") esté asignado al dataset**.
+- El dataset **NO necesita auto-crearse**. Podés usar un dataset existente; lo único requerido es
+  que el system user del BISU tenga acceso (task `UPLOAD`) a ese dataset. Esa asignación se hace
+  con `POST /{dataset}/assigned_users` (1 call, scriptable) o desde la UI.
+- El `subcode 33 / Missing Permission` que veíamos antes era porque el BISU **viejo** (signup sin
+  `ads_management`) no tenía acceso a ningún dataset. Con el BISU **nuevo** desaparece.
 - **NO** confundir la **versión del Graph API** (`v21.0` → `v24.0`, el número del URL) con la
   **generación del config del Embedded Signup** ("V4"). Son cosas distintas (ver más abajo).
+
+> Nota: la hipótesis original (que el único camino era el dataset auto-creado "<WABA> Event Data" y
+> que el BISU jamás llega a un dataset manual) quedó **refutada** por la prueba en vivo del 2026-06-25.
+> El auto-create sigue siendo lo más limpio, pero NO es la única vía.
+
+---
+
+## UPDATE 2026-06-25 — verificación en vivo (número +19704561909 / WABA Pastas de la Abuela 2312628749265487, BM Natacha)
+
+Se re-onboardeó un número con el config V4 (`config_id 1089619143509334`, app `2044825146471374` "Atlas Chat").
+
+- `debug_token` del BISU nuevo → trae los scopes: `ads_management, ads_read, pages_show_list,
+  pages_read_engagement, pages_manage_ads, whatsapp_business_management, whatsapp_business_messaging,
+  whatsapp_business_manage_events`. **El config V4 SÍ concede los permisos de Ads.**
+- **NO** se auto-creó un dataset `"<WABA> Event Data"` (el config concede permisos pero no incluyó el
+  producto Conversions API como asset a crear en el setup). Es indistinto: ver siguiente punto.
+- POST `/events` con el BISU nuevo:
+  - dataset `1804956360475851` ("Pastas de la abuela") → `events_received:1` (manda)
+  - dataset `1716016466262703` ("Pastas 1") → `Invalid Ctwa Clid` (subcode 2804087) = **llega**, solo
+    rechaza el `TEST`. Es el dataset realmente conectado a la cuenta de ads CTWA (valida el clid) → **usar este para el funnel**.
+  - dataset `1487356746014592` ("Pastas CAPI", creado a mano sin asignar este SU) → `subcode 33`.
+- Causa raíz del acceso: ambos datasets reales tienen asignado el **"Atlas Chat System User"
+  (`122116003677349998`)** con tasks `ADVERTISE/UPLOAD/ANALYZE/EDIT`. **Esa asignación es lo que
+  habilita el envío.** (El "Conversions API System User" `122104907619364707` está con solo `ANALYZE`.)
+
+### Receta práctica confirmada
+1. Onboardear bajo config V4 (otorga `ads_management` al BISU).
+2. Asegurar que el system user de la integración ("<App> System User") esté **asignado al dataset
+   destino** con task `UPLOAD`: `POST /{dataset}/assigned_users` con `business={BM}`,
+   `user={su_id}`, `tasks=["EDIT","UPLOAD"]`. (Si el dataset se auto-creó, ya viene asignado.)
+3. n8n postea `Purchase` a ese dataset con el `ctwa_clid` real y `whatsapp_business_account_id` = WABA
+   del número que recibió el click.
+
+> Pendiente de confirmar: si la asignación del SU a esos datasets la hizo el signup o fue manual.
+> Peor caso = 1 call por número (paso 2), scriptable. No bloquea.
 
 ---
 
