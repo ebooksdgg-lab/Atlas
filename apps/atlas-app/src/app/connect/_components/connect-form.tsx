@@ -82,14 +82,26 @@ export function ConnectForm({
           body: JSON.stringify({ code, phoneNumberId, wabaId, metaAppId: activeApp.id }),
         })
 
+        // Parse defensively: a crashed/proxied response can have an empty or
+        // non-JSON body, and res.json() would throw "Unexpected end of JSON input"
+        // instead of surfacing the real status.
+        const raw = await res.text()
+        let parsed: { error?: string; phoneNumber?: string } = {}
+        try {
+          if (raw) parsed = JSON.parse(raw) as typeof parsed
+        } catch {
+          /* non-JSON body (e.g. proxy error page) — fall through to HTTP status */
+        }
+
         if (!res.ok) {
-          const err = (await res.json()) as { error?: string }
-          setFlow({ step: "error", message: err.error ?? "Error al conectar el número." })
+          setFlow({
+            step: "error",
+            message: parsed.error ?? `Error al conectar el número (HTTP ${res.status}).`,
+          })
           return
         }
 
-        const data = (await res.json()) as { phoneNumber: string }
-        setFlow({ step: "success", phoneNumber: data.phoneNumber })
+        setFlow({ step: "success", phoneNumber: parsed.phoneNumber ?? "" })
       } catch (e) {
         setFlow({
           step: "error",

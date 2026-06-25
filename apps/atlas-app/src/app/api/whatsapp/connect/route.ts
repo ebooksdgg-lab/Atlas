@@ -84,38 +84,49 @@ export async function POST(req: NextRequest) {
   const tokenEncrypted = encrypt(token)
   const now = new Date()
 
-  await db
-    .insert(numbers)
-    .values({
-      phoneNumber: phoneE164,
-      displayName: phone.verifiedName,
-      businessId: biz.businessId,
-      businessName: biz.businessName,
-      wabaId,
-      phoneNumberId,
-      accessTokenEncrypted: tokenEncrypted,
-      metaAppUsed: metaAppId,
-      status: "unassigned",
-      qualityRating: normalizeQuality(phone.qualityRating),
-      messagingTier: phone.messagingTier,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: numbers.phoneNumberId,
-      set: {
-        // Meta data + token only — status/product/typebot left untouched so an
-        // already-assigned number keeps its assignment if reconnected.
+  try {
+    await db
+      .insert(numbers)
+      .values({
+        phoneNumber: phoneE164,
         displayName: phone.verifiedName,
         businessId: biz.businessId,
         businessName: biz.businessName,
         wabaId,
+        phoneNumberId,
         accessTokenEncrypted: tokenEncrypted,
+        metaAppUsed: metaAppId,
+        status: "unassigned",
         qualityRating: normalizeQuality(phone.qualityRating),
         messagingTier: phone.messagingTier,
+        createdAt: now,
         updatedAt: now,
-      },
-    })
+      })
+      // Conflict on phone_number (the stable real-world identity): re-onboarding
+      // the same number under a new WABA gives it a new phone_number_id, so we
+      // key on phone_number and refresh the Meta ids/token. status/product/typebot
+      // are left untouched so an already-assigned number keeps its assignment.
+      .onConflictDoUpdate({
+        target: numbers.phoneNumber,
+        set: {
+          displayName: phone.verifiedName,
+          businessId: biz.businessId,
+          businessName: biz.businessName,
+          wabaId,
+          phoneNumberId,
+          accessTokenEncrypted: tokenEncrypted,
+          qualityRating: normalizeQuality(phone.qualityRating),
+          messagingTier: phone.messagingTier,
+          updatedAt: now,
+        },
+      })
+  } catch (e) {
+    console.error("[connect] persist error:", e)
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Failed to save the number" },
+      { status: 500 }
+    )
+  }
 
   return NextResponse.json({ ok: true, phoneNumber: phoneE164 })
 }
