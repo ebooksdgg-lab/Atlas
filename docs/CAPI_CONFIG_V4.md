@@ -118,7 +118,7 @@ Embedded Signup. Un dataset auto-creado por el flujo entra en ese set; uno cread
 | `whatsapp_business_messaging` | Cloud API | ✅ ya está |
 | `ads_management` | CAPI / CTWA | ✅ **da acceso al dataset para mandar eventos** |
 | `ads_read` | CTWA | ✅ |
-| `business_management` | onboarding de assets | ✅ |
+| `business_management` | onboarding de assets | ❌ **NO agregar a mano**. Es Advanced Access → Meta lo restringe ("se restringieron algunos permisos") y NO se concede en el signup. Y NO hace falta: el dataset lo crea Meta, no Atlas. (Verificado: el BISU real no lo trae.) |
 | `pages_show_list` | CTWA (page del anuncio) | ✅ |
 | `pages_read_engagement` | CTWA | ✅ |
 | `pages_manage_ads` | crear anuncios CTWA | ⚠️ **se puede sacar** si Atlas no crea los anuncios (los crea el cliente). Menos permisos = App Review más fácil |
@@ -140,6 +140,49 @@ Embedded Signup. Un dataset auto-creado por el flujo entra en ese set; uno cread
 ### Verificación final
 Con el BISU nuevo, repetir el POST `/events` (paso de la tabla de evidencia) → tiene que dar
 **`events_received:1`** (no `subcode 33`). Ahí está cerrado.
+
+---
+
+## Cómo crear el config V4 — paso a paso (panel de Meta)
+
+> Diagnóstico confirmado en vivo (2026-06-25): el config actual `1089619143509334` **concede los
+> permisos de Ads pero NO provisiona el dataset**. Dos signups (WABA existente y WABA nueva con página +
+> cuenta de ads seleccionadas) → ninguno auto-creó dataset. **No es un permiso faltante** (agregar
+> `business_management` NO lo arregla) — es que el config **no declara el producto Conversions API**.
+
+**Panel:** developers.facebook.com → app **Atlas** (`2044825146471374`) → menú izquierdo
+**"Facebook Login for Business"** → pestaña **"Configurations"**.
+
+### Camino A — "Create from template" (el más rápido)
+Buscar el preset **"Conversions API Partner Integration"** / WhatsApp. Si aparece, elegirlo: viene con
+los productos y permisos correctos. Nombre → guardar → sale el `config_id`.
+
+### Camino B — "Create configuration" (manual)
+1. **Name:** ej. `Atlas WA V4 + CAPI`.
+2. **Token type / "Who can use":** **System User access token** (Business Integration). NO "User token".
+3. **Assets:** **WhatsApp accounts** (WhatsApp Business Account).
+4. **Productos a onboardear (EL PASO QUE FALTA):** activar **Ads that click-to-WhatsApp** + **Conversions
+   API** (+ opcional **Marketing Messages Lite**), además de WhatsApp Cloud API. Este bloque de productos
+   adicionales es lo que dispara que Meta cree y conecte el dataset.
+5. **Permisos:** dejar los que vienen atados a esos productos (`whatsapp_business_*`, `ads_management`,
+   `ads_read`, `pages_*`). **NO agregar `business_management`** (restringido + innecesario, ver tabla C).
+6. **Guardar** → **`config_id` nuevo**.
+
+### Después
+- Atlas → Settings → Meta Apps → **app_1** → pegar el `config_id` nuevo (reemplaza `1089619143509334`).
+  Atlas ya lo inyecta en el signup (`connect-form.tsx:104`), sin tocar código.
+- Signup de prueba → verificar que aparezca `"<page> Event Data"` en los datasets del business.
+
+### Si con el config V4 IGUAL no se crea el dataset
+El siguiente lever es el código del launcher: hoy manda `extras: { setup: {}, sessionInfoVersion: "3" }`
+(`connect-form.tsx:107`). En V4 puede requerir un **`featureType`** en `extras` para pedir explícitamente
+el onboarding de CTWA + CAPI. Verificar en vivo (signup de prueba → ¿aparece el dataset?); si no, tocar
+ese `extras`.
+
+### Bonus: webhook `automatic_events`
+Meta analiza con NLP el hilo del chat que vino de un anuncio CTWA y, si detecta lead/compra, dispara un
+webhook **`automatic_events`** avisando qué evento reportar. Parte de la detección de conversión la da
+Meta. Sumar al funnel cuando el config esté.
 
 ---
 
